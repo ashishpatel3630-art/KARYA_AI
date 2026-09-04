@@ -1,6 +1,5 @@
-import hashlib
-import secrets
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import jwt
 
@@ -8,17 +7,17 @@ from app.core.config import settings
 
 
 def create_access_token(user_id: str) -> str:
-
     now = datetime.now(timezone.utc)
 
+    expire = now + timedelta(
+        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),
         "type": "access",
         "iat": now,
-        "exp": now + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        ),
-        "jti": secrets.token_hex(16),
+        "exp": expire,
     }
 
     return jwt.encode(
@@ -28,13 +27,27 @@ def create_access_token(user_id: str) -> str:
     )
 
 
-def create_refresh_token() -> str:
+def create_refresh_token(user_id: str) -> tuple[str, str, datetime]:
+    now = datetime.now(timezone.utc)
 
-    return secrets.token_urlsafe(64)
+    expire = now + timedelta(
+        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+    )
 
+    jti = str(uuid.uuid4())
 
-def hash_refresh_token(token: str) -> str:
+    payload = {
+        "sub": str(user_id),
+        "type": "refresh",
+        "jti": jti,
+        "iat": now,
+        "exp": expire,
+    }
 
-    return hashlib.sha256(
-        token.encode("utf-8")
-    ).hexdigest()
+    token = jwt.encode(
+        payload,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+    return token, jti, expire

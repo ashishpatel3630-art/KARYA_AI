@@ -100,3 +100,13 @@ def decode_token(token: str) -> dict[str, Any]:
         settings.JWT_SECRET_KEY,
         algorithms=[settings.JWT_ALGORITHM],
     )
+    
+    import hashlib
+
+
+def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def verify_refresh_token(token: str, token_hash: str) -> bool:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest() == token_hash

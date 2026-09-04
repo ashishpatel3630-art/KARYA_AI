@@ -1,95 +1,94 @@
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from app.auth.dependencies import get_current_user
-from app.auth.schemas import (
-    LoginRequest,
-    RegisterRequest,
-    TokenResponse,
-    UserResponse,
-)
-from app.security.brute_force import (
-    is_login_blocked,
-    record_failed_login,
-    reset_failed_logins,
-)
-from app.auth.service import (
-    authenticate_user,
-    create_session,
-    register_user,
-)
-from app.core.config import settings
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from app.auth.schemas import LoginRequest, TokenResponse
+from app.auth.service import authenticate_user
+from app.auth.tokens import create_access_token, create_refresh_token
+from app.auth.password import password_hasher
 from app.core.database import get_db
 from app.models.user import User
+from app.sessions.service import create_session
+from app.security.brute_force import (
+    clear_failed_logins,
+    is_login_blocked,
+    record_failed_login,
+)
+
+from app.auth.exceptions import (
+    account_temporarily_locked,
+    invalid_credentials,
+)
 
 
 router = APIRouter(
-    prefix="/api/v1/auth",
+    prefix="/auth",
     tags=["Authentication"],
 )
 
 
+# ============================================================
+# REGISTER
+# ============================================================
+
 @router.post(
     "/register",
-    response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def register(
-    data: RegisterRequest,
+    data: LoginRequest,
     db: Session = Depends(get_db),
 ):
+    email = data.email.lower()
 
-    try:
+    # 1. Check whether user already exists
+    result = db.execute(
+        select(User).where(User.email == email)
+    )
 
-        user = register_user(
-            db=db,
-            email=data.email,
-            password=data.password,
-        )
+    existing_user = result.scalar_one_or_none()
 
-    except ValueError:
-
+    if existing_user is not None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unable to create account",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered",
         )
 
-    return user
+    # 2. Hash password using Argon2
+    hashed_password = password_hasher.hash(data.password)
+
+    # 3. Create user
+    user = User(
+        email=email,
+        password_hash=hashed_password,
+    )
+
+    # 4. Save to PostgreSQL
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "User registered successfully",
+        "user_id": str(user.id),
+        "email": user.email,
+    }
 
 
-@router.post(
-    "/login",
-    response_model=TokenResponse,
-)
+# ============================================================
+# LOGIN
+# ============================================================
+
+@router.post("/login", response_model=TokenResponse)
 def login(
     data: LoginRequest,
     request: Request,
-    response: Response,
     db: Session = Depends(get_db),
 ):
-    email = data.email.strip().lower()
-
-    client_ip = (
-        request.client.host
-        if request.client
-        else "unknown"
-    )
-
-    # ------------------------------------------------
-    # 1. Check email-based brute-force protection
-    # ------------------------------------------------
+    email = data.email.lower()
 
     if is_login_blocked(email):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Try again later.",
-        )
-
-    # ------------------------------------------------
-    # 2. Authenticate user
-    # ------------------------------------------------
+        raise account_temporarily_locked
 
     user = authenticate_user(
         db=db,
@@ -97,49 +96,29 @@ def login(
         password=data.password,
     )
 
-    # ------------------------------------------------
-    # 3. Failed login
-    # ------------------------------------------------
-
-    if not user:
-
+    if user is None:
         record_failed_login(email)
+        raise invalid_credentials
 
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
+    clear_failed_logins(email)
 
-    # ------------------------------------------------
-    # 4. Successful login
-    # ------------------------------------------------
+    access_token = create_access_token(user.id)
 
-    reset_failed_logins(email)
+    refresh_token, jti, expires_at = create_refresh_token(
+        user.id
+    )
 
-    user.last_login_at = datetime.utcnow()
-
-    access_token, refresh_token = create_session(
+    create_session(
         db=db,
-        user=user,
-        ip_address=client_ip,
+        user_id=user.id,
+        refresh_token=refresh_token,
+        expires_at=expires_at,
+        ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
 
-    # ------------------------------------------------
-    # 5. Refresh token → HttpOnly cookie
-    # ------------------------------------------------
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite=settings.COOKIE_SAMESITE,
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/api/v1/auth",
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
     )
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }

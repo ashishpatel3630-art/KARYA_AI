@@ -1,41 +1,43 @@
-from app.core.redis import redis_sync_client
+from app.core.redis import get_redis
 
 
 MAX_FAILED_ATTEMPTS = 5
-LOCKOUT_SECONDS = 900  # 15 minutes
+LOCKOUT_SECONDS = 900
 
 
-def is_login_blocked(identifier: str) -> bool:
-    key = f"auth:login:blocked:{identifier}"
-
-    return redis_sync_client.exists(key) == 1
+def get_login_attempt_key(email: str) -> str:
+    return f"login_attempts:{email.lower()}"
 
 
-def record_failed_login(identifier: str) -> int:
-    key = f"auth:login:attempts:{identifier}"
+def is_login_blocked(email: str) -> bool:
+    redis = get_redis()
 
-    attempts = redis_sync_client.incr(key)
+    key = get_login_attempt_key(email)
+
+    attempts = redis.get(key)
+
+    if attempts is None:
+        return False
+
+    return int(attempts) >= MAX_FAILED_ATTEMPTS
+
+
+def record_failed_login(email: str) -> int:
+    redis = get_redis()
+
+    key = get_login_attempt_key(email)
+
+    attempts = redis.incr(key)
 
     if attempts == 1:
-        redis_sync_client.expire(
-            key,
-            LOCKOUT_SECONDS,
-        )
-
-    if attempts >= MAX_FAILED_ATTEMPTS:
-        blocked_key = f"auth:login:blocked:{identifier}"
-
-        redis_sync_client.setex(
-            blocked_key,
-            LOCKOUT_SECONDS,
-            "1",
-        )
+        redis.expire(key, LOCKOUT_SECONDS)
 
     return attempts
 
 
-def reset_failed_logins(identifier: str) -> None:
-    redis_sync_client.delete(
-        f"auth:login:attempts:{identifier}",
-        f"auth:login:blocked:{identifier}",
-    )
+def clear_failed_logins(email: str) -> None:
+    redis = get_redis()
+
+    key = get_login_attempt_key(email)
+
+    redis.delete(key)
