@@ -10,6 +10,11 @@ from app.auth.schemas import (
     TokenResponse,
     UserResponse,
 )
+from app.security.brute_force import (
+    is_login_blocked,
+    record_failed_login,
+    reset_failed_logins,
+)
 from app.auth.service import (
     authenticate_user,
     create_session,
@@ -64,30 +69,65 @@ def login(
     response: Response,
     db: Session = Depends(get_db),
 ):
+    email = data.email.strip().lower()
+
+    client_ip = (
+        request.client.host
+        if request.client
+        else "unknown"
+    )
+
+    # ------------------------------------------------
+    # 1. Check email-based brute-force protection
+    # ------------------------------------------------
+
+    if is_login_blocked(email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Try again later.",
+        )
+
+    # ------------------------------------------------
+    # 2. Authenticate user
+    # ------------------------------------------------
 
     user = authenticate_user(
         db=db,
-        email=data.email,
+        email=email,
         password=data.password,
     )
 
+    # ------------------------------------------------
+    # 3. Failed login
+    # ------------------------------------------------
+
     if not user:
+
+        record_failed_login(email)
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
+    # ------------------------------------------------
+    # 4. Successful login
+    # ------------------------------------------------
+
+    reset_failed_logins(email)
+
     user.last_login_at = datetime.utcnow()
 
     access_token, refresh_token = create_session(
         db=db,
         user=user,
-        ip_address=request.client.host
-        if request.client
-        else None,
+        ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
     )
+
+    # ------------------------------------------------
+    # 5. Refresh token → HttpOnly cookie
+    # ------------------------------------------------
 
     response.set_cookie(
         key="refresh_token",
@@ -102,30 +142,4 @@ def login(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-    }
-
-
-@router.get(
-    "/me",
-    response_model=UserResponse,
-)
-def get_me(
-    current_user: User = Depends(get_current_user),
-):
-
-    return current_user
-
-
-@router.post("/logout")
-def logout(
-    response: Response,
-):
-
-    response.delete_cookie(
-        key="refresh_token",
-        path="/api/v1/auth",
-    )
-
-    return {
-        "message": "Logged out"
     }
