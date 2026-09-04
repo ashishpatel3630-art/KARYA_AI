@@ -1,57 +1,64 @@
-import { Bell, Search, ShieldCheck, User } from "lucide-react";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 
-const Navbar = () => {
+function Navbar() {
+  const [open, setOpen] = useState(false);
+
   return (
-    <header className="flex h-16 w-full items-center justify-between border-b border-[#2A2A2A] bg-[#050505] px-6">
-      <div className="flex items-center gap-4">
-        <div>
-          <h1 className="text-sm font-medium text-[#F5F5F5]">AI Workbench</h1>
+    <nav className="fixed top-0 z-50 w-full border-b border-[#1A1A1A] bg-[#050505]/95 backdrop-blur">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 lg:px-8">
+        
+        <a href="#top" className="text-xl font-bold tracking-[0.25em] text-white">
+          KARYA
+        </a>
 
-          <p className="text-[10px] text-[#8A8A85]">Sovereign Industrial AI</p>
+        <div className="hidden items-center gap-8 md:flex">
+          <a href="#solution" className="text-xs uppercase tracking-widest text-[#8A8A85] hover:text-white">
+            Solution
+          </a>
+          <a href="#features" className="text-xs uppercase tracking-widest text-[#8A8A85] hover:text-white">
+            Capabilities
+          </a>
+          <a href="#security" className="text-xs uppercase tracking-widest text-[#8A8A85] hover:text-white">
+            Security
+          </a>
+          <a href="#use-cases" className="text-xs uppercase tracking-widest text-[#8A8A85] hover:text-white">
+            Use Cases
+          </a>
         </div>
-      </div>
 
-      <div className="flex items-center gap-5">
-        <div className="hidden items-center gap-2 rounded-md border border-[#2A2A2A] px-3 py-1.5 sm:flex">
-          <ShieldCheck size={14} className="text-[#F5F5F5]" />
-
-          <span className="text-[10px] uppercase tracking-wider text-[#8A8A85]">
-            On-Premise
-          </span>
-        </div>
+        <button className="hidden border border-[#2A2A2A] bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-widest text-black transition hover:bg-[#D8D8D8] md:block">
+          Get Started
+        </button>
 
         <button
-          className="text-[#8A8A85] transition-colors hover:text-[#F5F5F5]"
-          aria-label="Search"
+          onClick={() => setOpen(!open)}
+          className="text-white md:hidden"
         >
-          <Search size={18} strokeWidth={1.7} />
-        </button>
-
-        <button
-          className="relative text-[#8A8A85] transition-colors hover:text-[#F5F5F5]"
-          aria-label="Notifications"
-        >
-          <Bell size={18} strokeWidth={1.7} />
-
-          <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[#F5F5F5]" />
-        </button>
-
-        <div className="h-6 w-px bg-[#2A2A2A]" />
-
-        <button className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#2A2A2A] bg-[#111111]">
-            <User size={15} className="text-[#8A8A85]" />
-          </div>
-
-          <div className="hidden text-left md:block">
-            <p className="text-xs font-medium text-[#F5F5F5]">Engineer</p>
-
-            <p className="text-[10px] text-[#8A8A85]">Administrator</p>
-          </div>
+          {open ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
-    </header>
+
+      {open && (
+        <div className="border-t border-[#1A1A1A] bg-[#050505] px-6 py-6 md:hidden">
+          <div className="flex flex-col gap-6">
+            <a href="#solution" onClick={() => setOpen(false)} className="text-xs uppercase tracking-widest text-[#8A8A85]">
+              Solution
+            </a>
+            <a href="#features" onClick={() => setOpen(false)} className="text-xs uppercase tracking-widest text-[#8A8A85]">
+              Capabilities
+            </a>
+            <a href="#security" onClick={() => setOpen(false)} className="text-xs uppercase tracking-widest text-[#8A8A85]">
+              Security
+            </a>
+            <a href="#use-cases" onClick={() => setOpen(false)} className="text-xs uppercase tracking-widest text-[#8A8A85]">
+              Use Cases
+            </a>
+          </div>
+        </div>
+      )}
+    </nav>
   );
-};
+}
 
 export default Navbar;
