@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const KaryaLoader = () => {
+const KaryaLoader = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -8,6 +8,7 @@ const KaryaLoader = () => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
+          onComplete();
           return 100;
         }
 
