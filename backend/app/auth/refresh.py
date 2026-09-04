@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -57,9 +59,11 @@ def get_session_from_refresh_token(
             detail="Refresh session has been revoked",
         )
 
-    if session.expires_at <= __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc
-    ):
+    expires_at = session.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if expires_at <= datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh session expired",

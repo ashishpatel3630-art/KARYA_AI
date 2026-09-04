@@ -29,6 +29,7 @@ from app.security.brute_force import (
     is_login_blocked,
     record_failed_login,
 )
+from app.security.audit import record_security_event
 from app.sessions.service import create_session
 
 
@@ -74,6 +75,7 @@ def register(
     )
 
     db.add(user)
+    record_security_event(db, "user_registered", metadata={"email": email})
     db.commit()
     db.refresh(user)
 
@@ -112,10 +114,14 @@ def login(
 
     if user is None:
         record_failed_login(email)
+        record_security_event(db, "login_failed", metadata={"email": email})
+        db.commit()
         raise invalid_credentials
 
     # 3. Clear failed attempts
     clear_failed_logins(email)
+    user.last_login_at = datetime.now(timezone.utc)
+    record_security_event(db, "login_succeeded", user_id=user.id)
 
     # 4. Create access token
     access_token = create_access_token(
@@ -176,6 +182,7 @@ def refresh_token(
     # 2. Revoke old session
     session.revoked = True
     session.revoked_at = datetime.now(timezone.utc)
+    record_security_event(db, "refresh_rotated", user_id=user_id)
 
     # 3. Create new access token
     access_token = create_access_token(
@@ -220,3 +227,28 @@ def refresh_token(
         refresh_token=new_refresh_token,
         token_type="bearer",
     )
+
+
+# ============================================================
+# LOGOUT
+# ============================================================
+
+@router.post("/logout")
+def logout(
+    data: RefreshRequest,
+    db: Session = Depends(get_db),
+):
+    session = get_session_from_refresh_token(
+        db=db,
+        refresh_token=data.refresh_token,
+    )
+
+    session.revoked = True
+    session.revoked_at = datetime.now(timezone.utc)
+    record_security_event(db, "logout", user_id=session.user_id)
+    db.commit()
+
+    return {
+        "message": "Logged out successfully",
+        "session_id": session.id,
+    }

@@ -20,3 +20,10 @@ redis_client = _build_redis_client()
 
 def get_redis() -> redis.Redis:
     return redis_client
+
+
+async def check_redis() -> bool:
+    try:
+        return bool(redis_client.ping())
+    except redis.RedisError:
+        return False

@@ -41,3 +41,7 @@ def clear_failed_logins(email: str) -> None:
     key = get_login_attempt_key(email)
 
     redis.delete(key)
+
+
+def reset_failed_logins(email: str) -> None:
+    clear_failed_logins(email)

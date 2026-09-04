@@ -10,6 +10,7 @@ os.environ["DATABASE_URL"] = "sqlite://"
 
 from app.core import config as config_module
 from app.core.database import Base
+from app.core.redis import get_redis
 from app.main import app
 
 config_module.settings.DATABASE_URL = "sqlite://"
@@ -19,6 +20,11 @@ import app.core.database as db_module
 
 @pytest.fixture()
 def client():
+    try:
+        get_redis().flushdb()
+    except Exception:
+        pass
+
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},

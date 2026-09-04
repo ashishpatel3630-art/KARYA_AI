@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     EMAIL_VERIFICATION_TTL_MINUTES: int = 60
     PASSWORD_RESET_TTL_MINUTES: int = 60
     MFA_RATE_LIMIT_PER_MINUTE: int = 5
+    OAUTH_STATE_TTL_SECONDS: int = 600
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GITHUB_CLIENT_ID: str | None = None
+    GITHUB_CLIENT_SECRET: str | None = None
+    MICROSOFT_CLIENT_ID: str | None = None
+    MICROSOFT_CLIENT_SECRET: str | None = None
 
     # Cookie / CORS
     CORS_ALLOW_ORIGINS: str = "http://localhost:5173"
