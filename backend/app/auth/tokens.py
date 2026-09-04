@@ -29,7 +29,9 @@ def create_access_token(user_id: str) -> str:
 
 def create_refresh_token(
     user_id: str,
-) -> tuple[str, str, datetime]:
+    token_family: str | None = None,
+    parent_jti: str | None = None,
+) -> tuple[str, str, str, datetime]:
 
     now = datetime.now(timezone.utc)
 
@@ -39,10 +41,15 @@ def create_refresh_token(
 
     jti = str(uuid.uuid4())
 
+    if token_family is None:
+        token_family = str(uuid.uuid4())
+
     payload = {
         "sub": str(user_id),
         "type": "refresh",
         "jti": jti,
+        "token_family": token_family,
+        "parent_jti": parent_jti,
         "iat": now,
         "exp": expire,
     }
@@ -53,7 +60,7 @@ def create_refresh_token(
         algorithm=settings.JWT_ALGORITHM,
     )
 
-    return token, jti, expire
+    return token, jti, token_family, expire
 
 
 def decode_token(token: str) -> dict:

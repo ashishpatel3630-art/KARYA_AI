@@ -3,13 +3,20 @@ import redis
 from app.core.config import settings
 
 
-redis_client = redis.Redis(
-    host=settings.REDIS_HOST,
-    port=settings.REDIS_PORT,
-    db=settings.REDIS_DB,
-    decode_responses=True,
-)
+def _build_redis_client() -> redis.Redis:
+    if settings.REDIS_URL:
+        return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    return redis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        decode_responses=True,
+    )
 
 
-def get_redis():
+redis_client = _build_redis_client()
+
+
+def get_redis() -> redis.Redis:
     return redis_client

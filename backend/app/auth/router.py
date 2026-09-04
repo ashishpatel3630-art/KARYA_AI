@@ -123,7 +123,7 @@ def login(
     )
 
     # 5. Create refresh token
-    refresh_token, jti, expires_at = create_refresh_token(
+    refresh_token, jti, token_family, expires_at = create_refresh_token(
         user.id
     )
 
@@ -141,6 +141,8 @@ def login(
         user_agent=request.headers.get(
             "user-agent"
         ),
+        jti=jti,
+        token_family=token_family,
     )
 
     # 7. Return tokens
@@ -184,9 +186,12 @@ def refresh_token(
     (
         new_refresh_token,
         jti,
+        token_family,
         expires_at,
     ) = create_refresh_token(
-        user_id
+        user_id,
+        token_family=session.token_family,
+        parent_jti=session.jti,
     )
 
     # 5. Create new session
@@ -195,6 +200,9 @@ def refresh_token(
         refresh_token_hash=hash_refresh_token(
             new_refresh_token
         ),
+        jti=jti,
+        token_family=token_family,
+        parent_jti=session.jti,
         ip_address=session.ip_address,
         user_agent=session.user_agent,
         expires_at=expires_at,
