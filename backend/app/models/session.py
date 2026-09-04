@@ -28,6 +28,21 @@ class Session(Base):
         nullable=False,
     )
 
+    # Unique ID of this exact refresh token
+    jti: Mapped[str] = mapped_column(
+        String(36),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    # Identifies the complete refresh-token chain
+    token_family: Mapped[str] = mapped_column(
+        String(36),
+        nullable=False,
+        index=True,
+    )
+
     user_agent: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,

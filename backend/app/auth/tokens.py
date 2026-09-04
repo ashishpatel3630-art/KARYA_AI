@@ -27,7 +27,10 @@ def create_access_token(user_id: str) -> str:
     )
 
 
-def create_refresh_token(user_id: str) -> tuple[str, str, datetime]:
+def create_refresh_token(
+    user_id: str,
+) -> tuple[str, str, datetime]:
+
     now = datetime.now(timezone.utc)
 
     expire = now + timedelta(
@@ -51,3 +54,11 @@ def create_refresh_token(user_id: str) -> tuple[str, str, datetime]:
     )
 
     return token, jti, expire
+
+
+def decode_token(token: str) -> dict:
+    return jwt.decode(
+        token,
+        settings.JWT_SECRET_KEY,
+        algorithms=[settings.JWT_ALGORITHM],
+    )
