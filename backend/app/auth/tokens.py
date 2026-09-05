@@ -63,6 +63,40 @@ def create_refresh_token(
     return token, jti, family, expires_at
 
 
+def get_session_absolute_expiry(created_at: datetime) -> datetime:
+    return created_at + timedelta(
+        days=settings.SESSION_ABSOLUTE_TIMEOUT_DAYS
+    )
+
+
+def create_mfa_challenge(user_id: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user_id),
+        "jti": uuid.uuid4().hex,
+        "type": "mfa_challenge",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=5)).timestamp()),
+    }
+    return jwt.encode(
+        payload,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+
+def decode_mfa_challenge(token: str) -> dict[str, Any]:
+    payload = jwt.decode(
+        token,
+        settings.JWT_SECRET_KEY,
+        algorithms=[settings.JWT_ALGORITHM],
+        options={"require": ["sub", "jti", "type", "iat", "exp"]},
+    )
+    if payload.get("type") != "mfa_challenge" or not payload.get("sub"):
+        raise ValueError("Invalid MFA challenge")
+    return payload
+
+
 def decode_token(token: str) -> dict[str, Any]:
     payload = jwt.decode(
         token,

@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.models.password_reset_token import PasswordResetToken
 from app.models.session import Session as UserSession
 from app.models.user import User
+from app.security.audit import record_security_event
 
 
 def _hash_token(token: str) -> str:
@@ -19,6 +20,14 @@ def _hash_token(token: str) -> str:
 
 def create_password_reset_token(db: Session, user: User) -> str:
 	token = secrets.token_urlsafe(32)
+	db.execute(
+		update(PasswordResetToken)
+		.where(
+			PasswordResetToken.user_id == user.id,
+			PasswordResetToken.used_at.is_(None),
+		)
+		.values(used_at=datetime.now(timezone.utc))
+	)
 	db.add(
 		PasswordResetToken(
 			user_id=user.id,
@@ -35,7 +44,7 @@ def reset_password(db: Session, token: str, new_password: str) -> None:
 	record = db.scalar(
 		select(PasswordResetToken).where(
 			PasswordResetToken.token_hash == _hash_token(token),
-		)
+		).with_for_update()
 	)
 	if record is None or record.used_at is not None:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
@@ -57,6 +66,7 @@ def reset_password(db: Session, token: str, new_password: str) -> None:
 		.where(UserSession.user_id == user.id, UserSession.revoked.is_(False))
 		.values(revoked=True, revoked_at=datetime.now(timezone.utc))
 	)
+	record_security_event(db, "password_reset_completed", user_id=user.id)
 	db.commit()
 
 

@@ -3,12 +3,13 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.user import User
+from app.security.audit import record_security_event
 
 
 def _hash_token(token: str) -> str:
@@ -17,6 +18,14 @@ def _hash_token(token: str) -> str:
 
 def create_verification_token(db: Session, user: User) -> str:
 	token = secrets.token_urlsafe(32)
+	db.execute(
+		update(EmailVerificationToken)
+		.where(
+			EmailVerificationToken.user_id == user.id,
+			EmailVerificationToken.used_at.is_(None),
+		)
+		.values(used_at=datetime.now(timezone.utc))
+	)
 	db.add(
 		EmailVerificationToken(
 			user_id=user.id,
@@ -33,7 +42,7 @@ def verify_email(db: Session, token: str) -> None:
 	record = db.scalar(
 		select(EmailVerificationToken).where(
 			EmailVerificationToken.token_hash == _hash_token(token),
-		)
+		).with_for_update()
 	)
 	if record is None or record.used_at is not None:
 		raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
@@ -50,4 +59,5 @@ def verify_email(db: Session, token: str) -> None:
 
 	user.is_verified = True
 	record.used_at = datetime.now(timezone.utc)
+	record_security_event(db, "email_verified", user_id=user.id)
 	db.commit()

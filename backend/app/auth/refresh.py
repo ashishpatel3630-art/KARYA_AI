@@ -1,10 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.auth.token_hash import hash_refresh_token
+from app.core.config import settings
 from app.auth.tokens import decode_token
 from app.models.session import Session as UserSession
 from app.security.audit import record_security_event
@@ -155,10 +156,41 @@ def get_session_from_refresh_token(
             detail="Refresh session expired",
         )
 
+    now = datetime.now(timezone.utc)
+    absolute_expires_at = session.absolute_expires_at
+    if absolute_expires_at is not None:
+        if absolute_expires_at.tzinfo is None:
+            absolute_expires_at = absolute_expires_at.replace(
+                tzinfo=timezone.utc
+            )
+        if absolute_expires_at <= now:
+            session.revoked = True
+            session.revoked_at = now
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh session expired",
+            )
+
+    last_used_at = session.last_used_at or session.created_at
+    if last_used_at.tzinfo is None:
+        last_used_at = last_used_at.replace(tzinfo=timezone.utc)
+    idle_deadline = last_used_at + timedelta(
+        days=settings.SESSION_IDLE_TIMEOUT_DAYS
+    )
+    if idle_deadline <= now:
+        session.revoked = True
+        session.revoked_at = now
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh session expired",
+        )
+
     # ---------------------------------------------------------
     # 10. Update last-used timestamp
     # ---------------------------------------------------------
 
-    session.last_used_at = datetime.now(timezone.utc)
+    session.last_used_at = now
 
     return session

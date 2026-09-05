@@ -5,3 +5,4 @@ from app.models.security_event import SecurityEvent
 from app.models.password_reset_token import PasswordResetToken
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.mfa import MFA
+from app.models.mfa_recovery_code import MFARecoveryCode

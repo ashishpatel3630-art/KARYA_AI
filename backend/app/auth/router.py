@@ -12,6 +12,7 @@ from app.auth.password import password_hasher
 from app.auth.refresh import get_session_from_refresh_token
 from app.auth.schemas import (
     LoginRequest,
+    MFAChallengeResponse,
     RefreshRequest,
     TokenResponse,
 )
@@ -19,10 +20,13 @@ from app.auth.token_hash import hash_refresh_token
 from app.auth.service import authenticate_user
 from app.auth.tokens import (
     create_access_token,
+    create_mfa_challenge,
     create_refresh_token,
 )
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.session import Session as SessionModel
+from app.models.mfa import MFA
 from app.models.user import User
 from app.security.brute_force import (
     clear_failed_logins,
@@ -30,7 +34,9 @@ from app.security.brute_force import (
     record_failed_login,
 )
 from app.security.audit import record_security_event
+from app.security.rate_limit import enforce_auth_rate_limit
 from app.sessions.service import create_session
+from app.verification.service import create_verification_token
 
 
 router = APIRouter(
@@ -49,8 +55,13 @@ router = APIRouter(
 )
 def register(
     data: LoginRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
+    enforce_auth_rate_limit(
+        key=f"register:ip:{request.client.host if request.client else 'unknown'}",
+        limit=settings.AUTH_REGISTER_RATE_LIMIT,
+    )
     email = data.email.lower()
 
     result = db.execute(
@@ -78,6 +89,7 @@ def register(
     record_security_event(db, "user_registered", metadata={"email": email})
     db.commit()
     db.refresh(user)
+    create_verification_token(db, user)
 
     return {
         "message": "User registered successfully",
@@ -92,7 +104,7 @@ def register(
 
 @router.post(
     "/login",
-    response_model=TokenResponse,
+    response_model=TokenResponse | MFAChallengeResponse,
 )
 def login(
     data: LoginRequest,
@@ -100,6 +112,16 @@ def login(
     db: Session = Depends(get_db),
 ):
     email = data.email.lower()
+    ip_address = request.client.host if request.client else "unknown"
+
+    enforce_auth_rate_limit(
+        key=f"login:ip:{ip_address}",
+        limit=settings.AUTH_LOGIN_IP_RATE_LIMIT,
+    )
+    enforce_auth_rate_limit(
+        key=f"login:account:{email}",
+        limit=settings.AUTH_LOGIN_ACCOUNT_RATE_LIMIT,
+    )
 
     # 1. Brute-force protection
     if is_login_blocked(email):
@@ -117,6 +139,18 @@ def login(
         record_security_event(db, "login_failed", metadata={"email": email})
         db.commit()
         raise invalid_credentials
+
+    enabled_mfa = db.scalar(
+        select(MFA).where(
+            MFA.user_id == user.id,
+            MFA.type == "totp",
+            MFA.enabled.is_(True),
+        )
+    )
+    if enabled_mfa is not None:
+        return MFAChallengeResponse(
+            challenge_token=create_mfa_challenge(user.id),
+        )
 
     # 3. Clear failed attempts
     clear_failed_logins(email)
@@ -169,8 +203,13 @@ def login(
 )
 def refresh_token(
     data: RefreshRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
+    enforce_auth_rate_limit(
+        key=f"refresh:ip:{request.client.host if request.client else 'unknown'}",
+        limit=settings.AUTH_REFRESH_RATE_LIMIT,
+    )
     # 1. Validate refresh token
     session = get_session_from_refresh_token(
         db=db,
@@ -213,7 +252,9 @@ def refresh_token(
         ip_address=session.ip_address,
         user_agent=session.user_agent,
         expires_at=expires_at,
+        absolute_expires_at=session.absolute_expires_at,
         revoked=False,
+        last_used_at=datetime.now(timezone.utc),
     )
 
     db.add(new_session)
@@ -236,8 +277,13 @@ def refresh_token(
 @router.post("/logout")
 def logout(
     data: RefreshRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
+    enforce_auth_rate_limit(
+        key=f"logout:ip:{request.client.host if request.client else 'unknown'}",
+        limit=settings.AUTH_LOGOUT_RATE_LIMIT,
+    )
     session = get_session_from_refresh_token(
         db=db,
         refresh_token=data.refresh_token,

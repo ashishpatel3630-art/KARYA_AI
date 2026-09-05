@@ -1,9 +1,10 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session as DBSession
 
 from app.auth.token_hash import hash_refresh_token
+from app.auth.tokens import get_session_absolute_expiry
 from app.models.session import Session
 
 
@@ -26,6 +27,9 @@ def create_session(
         ip_address=ip_address,
         user_agent=user_agent,
         expires_at=expires_at,
+        absolute_expires_at=get_session_absolute_expiry(
+            datetime.now(timezone.utc)
+        ),
         revoked=False,
     )
 
