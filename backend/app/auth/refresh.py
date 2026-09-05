@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.token_hash import hash_refresh_token
 from app.auth.tokens import decode_token
 from app.models.session import Session as UserSession
+from app.security.audit import record_security_event
 
 
 def get_session_from_refresh_token(
@@ -103,6 +104,7 @@ def get_session_from_refresh_token(
 
     if session.revoked:
 
+        # Revoke every active session in the token family.
         db.execute(
             update(UserSession)
             .where(
@@ -114,6 +116,19 @@ def get_session_from_refresh_token(
                 revoked=True,
                 revoked_at=datetime.now(timezone.utc),
             )
+        )
+
+        # Record the security incident.
+        record_security_event(
+            db,
+            "refresh_token_reuse_detected",
+            user_id=user_id,
+            ip_address=session.ip_address,
+            user_agent=session.user_agent,
+            metadata={
+                "token_family": session.token_family,
+                "jti": session.jti,
+            },
         )
 
         db.commit()
