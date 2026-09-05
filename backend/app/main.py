@@ -15,7 +15,29 @@ app = FastAPI(
     description="KARYA AI Authentication and Backend API",
     version="1.0.0",
 )
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
+from app.middleware.security_headers import SecurityHeadersMiddleware
+# =========================
+# Security Middleware
+# =========================
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+allowed_origins = [
+    origin.strip()
+    for origin in settings.CORS_ALLOW_ORIGINS.split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 # =========================
 # Authentication Routes

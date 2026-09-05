@@ -41,7 +41,13 @@ def login_user(
         return None
 
     access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
+
+    (
+        refresh_token,
+        _jti,
+        _token_family,
+        _expires_at,
+    ) = create_refresh_token(user.id)
 
     return {
         "access_token": access_token,

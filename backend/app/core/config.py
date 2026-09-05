@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     MICROSOFT_CLIENT_SECRET: str | None = None
 
     # Cookie / CORS
-    CORS_ALLOW_ORIGINS: str = "http://localhost:5173"
+    CORS_ALLOW_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
     COOKIE_SECURE: bool = False
     COOKIE_SAMESITE: str = "lax"
 

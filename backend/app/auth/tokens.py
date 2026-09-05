@@ -1,4 +1,6 @@
+
 from datetime import datetime, timedelta, timezone
+from typing import Any
 import uuid
 
 import jwt
@@ -8,16 +10,16 @@ from app.core.config import settings
 
 def create_access_token(user_id: str) -> str:
     now = datetime.now(timezone.utc)
-
-    expire = now + timedelta(
+    expires_at = now + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
 
     payload = {
         "sub": str(user_id),
+        "jti": uuid.uuid4().hex,
         "type": "access",
-        "iat": now,
-        "exp": expire,
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
     }
 
     return jwt.encode(
@@ -35,23 +37,21 @@ def create_refresh_token(
 
     now = datetime.now(timezone.utc)
 
-    expire = now + timedelta(
+    expires_at = now + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
 
-    jti = str(uuid.uuid4())
-
-    if token_family is None:
-        token_family = str(uuid.uuid4())
+    jti = uuid.uuid4().hex
+    family = token_family or uuid.uuid4().hex
 
     payload = {
         "sub": str(user_id),
-        "type": "refresh",
         "jti": jti,
-        "token_family": token_family,
+        "type": "refresh",
+        "token_family": family,
         "parent_jti": parent_jti,
-        "iat": now,
-        "exp": expire,
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
     }
 
     token = jwt.encode(
@@ -60,12 +60,29 @@ def create_refresh_token(
         algorithm=settings.JWT_ALGORITHM,
     )
 
-    return token, jti, token_family, expire
+    return token, jti, family, expires_at
 
 
-def decode_token(token: str) -> dict:
-    return jwt.decode(
+def decode_token(token: str) -> dict[str, Any]:
+    payload = jwt.decode(
         token,
         settings.JWT_SECRET_KEY,
         algorithms=[settings.JWT_ALGORITHM],
+        options={
+            "require": [
+                "sub",
+                "jti",
+                "type",
+                "exp",
+                "iat",
+            ]
+        },
     )
+
+    if not payload.get("sub"):
+        raise ValueError("Missing subject")
+
+    if payload.get("type") not in {"access", "refresh"}:
+        raise ValueError("Invalid token type")
+
+    return payload

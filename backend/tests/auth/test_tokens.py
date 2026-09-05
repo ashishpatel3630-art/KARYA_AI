@@ -1,4 +1,8 @@
-from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.auth.tokens import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+)
 
 
 def test_access_token_has_expected_claims():
@@ -12,7 +16,7 @@ def test_access_token_has_expected_claims():
 
 
 def test_refresh_token_has_expected_claims():
-    token, jti, expires_at, family = create_refresh_token("user-123")
+    token, jti, family, expires_at = create_refresh_token("user-123")
     payload = decode_token(token)
 
     assert payload["sub"] == "user-123"
