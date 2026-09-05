@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 import Landing from "./pages/landing";
+import Login from "./pages/Login";
+import Desktop from "./pages/Desktop";
 import KaryaLoader from "./components/loading/KaryaLoading";
 
 function App() {
@@ -12,7 +14,9 @@ function App() {
         <KaryaLoader onComplete={() => setPage("landing")} />
       )}
 
-      {page === "landing" && <Landing />}
+      {page === "landing" && <Landing onStart={() => setPage("login")} />}
+      {page === "login" && <Login onLogin={() => setPage("desktop")} />}
+      {page === "desktop" && <Desktop />}
     </>
   );
 }

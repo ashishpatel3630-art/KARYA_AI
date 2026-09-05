@@ -1,6 +1,6 @@
 import React from "react";
 
-function Hero() {
+function Hero({ onStart }) {
   return (
     <section className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-[#050505] text-[#F5F5F5]">
       
@@ -51,7 +51,10 @@ function Hero() {
 
        
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-          <button className="group border border-[#F5F5F5] bg-[#F5F5F5] px-7 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#050505] transition hover:bg-transparent hover:text-[#F5F5F5]">
+          <button
+            onClick={onStart}
+            className="group border border-[#F5F5F5] bg-[#F5F5F5] px-7 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#050505] transition hover:bg-transparent hover:text-[#F5F5F5]"
+          >
             Work KARYA
             <span className="ml-3 inline-block transition-transform group-hover:translate-x-1">
               →

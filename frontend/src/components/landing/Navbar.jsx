@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
-function Navbar() {
+function Navbar({ onStart }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -27,7 +27,10 @@ function Navbar() {
           </a>
         </div>
 
-        <button className="hidden border border-[#2A2A2A] bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-widest text-black transition hover:bg-[#D8D8D8] md:block">
+        <button
+          onClick={onStart}
+          className="hidden border border-[#2A2A2A] bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-widest text-black transition hover:bg-[#D8D8D8] md:block"
+        >
           Get Started
         </button>
 

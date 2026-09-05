@@ -15,7 +15,7 @@ import Footer from "../components/landing/Footer";
 function Landing({ onStart }) {
   return (
     <main className="min-h-screen bg-[#050505] text-white">
-      <Navbar />
+      <Navbar onStart={onStart} />
 
       <Hero onStart={onStart} />
 
