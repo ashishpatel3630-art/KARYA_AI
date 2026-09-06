@@ -11,7 +11,6 @@ class VectorStore:
         self.database_url = database_url
 
     def _get_connection(self):
-        """Create a PostgreSQL connection."""
         return psycopg.connect(self.database_url)
 
     def add_chunk(
@@ -22,9 +21,8 @@ class VectorStore:
         chunk_id: int,
         content: str,
         embedding: list[float],
+        page_number: int | None = None,
     ) -> None:
-        """Store one document chunk and its embedding."""
-
         if len(embedding) != 384:
             raise ValueError(
                 f"Expected a 384-dimensional embedding, "
@@ -40,16 +38,18 @@ class VectorStore:
                         file_name,
                         file_type,
                         chunk_id,
+                        page_number,
                         content,
                         embedding
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         document_id,
                         file_name,
                         file_type,
                         chunk_id,
+                        page_number,
                         content,
                         embedding,
                     ),
@@ -61,8 +61,6 @@ class VectorStore:
         self,
         chunks: list[dict],
     ) -> None:
-        """Store multiple document chunks."""
-
         if not chunks:
             raise ValueError(
                 "Cannot store an empty chunk list."
@@ -86,16 +84,18 @@ class VectorStore:
                             file_name,
                             file_type,
                             chunk_id,
+                            page_number,
                             content,
                             embedding
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             chunk["document_id"],
                             chunk["file_name"],
                             chunk["file_type"],
                             chunk["chunk_id"],
+                            chunk.get("page_number"),
                             chunk["content"],
                             embedding,
                         ),
@@ -104,8 +104,6 @@ class VectorStore:
             connection.commit()
 
     def count_chunks(self) -> int:
-        """Return the total number of stored chunks."""
-
         with self._get_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(

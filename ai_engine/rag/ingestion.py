@@ -2,9 +2,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from documents.docx import DOCXParser
-from documents.pdf import PDFParser
+from documents.pdf import PDFPage, PDFParser
 from documents.pptx import PPTXParser
 from documents.xlsx import XLSXParser
+
+
+@dataclass
+class IngestedPage:
+    """Represents a document section with optional location metadata."""
+
+    page_number: int | None
+    content: str
 
 
 @dataclass
@@ -15,6 +23,7 @@ class IngestedDocument:
     file_path: str
     file_type: str
     content: str
+    pages: list[IngestedPage]
 
 
 class DocumentIngestion:
@@ -43,7 +52,8 @@ class DocumentIngestion:
             file_path: Path to the document.
 
         Returns:
-            IngestedDocument containing extracted text.
+            IngestedDocument containing extracted text and
+            document location metadata.
         """
 
         path = Path(file_path)
@@ -67,11 +77,38 @@ class DocumentIngestion:
 
         parser = self.parsers[extension]
 
-        content = parser.parse(str(path))
+        if extension == ".pdf":
+            pdf_pages: list[PDFPage] = parser.parse(
+                str(path)
+            )
+
+            pages = [
+                IngestedPage(
+                    page_number=page.page_number,
+                    content=page.content,
+                )
+                for page in pdf_pages
+            ]
+
+            content = "\n\n".join(
+                page.content
+                for page in pages
+            )
+
+        else:
+            content = parser.parse(str(path))
+
+            pages = [
+                IngestedPage(
+                    page_number=None,
+                    content=content,
+                )
+            ]
 
         return IngestedDocument(
             file_name=path.name,
             file_path=str(path),
             file_type=extension,
             content=content,
+            pages=pages,
         )

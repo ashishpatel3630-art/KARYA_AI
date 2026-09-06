@@ -3,6 +3,7 @@ from rag.retrieval import Retriever
 
 
 embedding_model = EmbeddingModel()
+
 retriever = Retriever()
 
 
@@ -25,6 +26,7 @@ print("=" * 60)
 for result in results:
     print(f"ID: {result.id}")
     print(f"FILE: {result.file_name}")
+    print(f"PAGE: {result.page_number}")
     print(f"CHUNK: {result.chunk_id}")
     print(f"SIMILARITY: {result.similarity:.4f}")
     print(f"CONTENT: {result.content}")

@@ -4,7 +4,7 @@ from rag.ingestion import DocumentIngestion
 ingestion = DocumentIngestion()
 
 document = ingestion.ingest(
-    "test_document.pdf"
+    "rag/test_ingestion_document.pdf"
 )
 
 print("FILE NAME:")

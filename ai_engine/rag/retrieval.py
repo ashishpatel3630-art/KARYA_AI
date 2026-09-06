@@ -12,6 +12,7 @@ class RetrievedChunk:
     file_name: str
     file_type: str
     chunk_id: int
+    page_number: int | None
     content: str
     similarity: float
 
@@ -57,6 +58,7 @@ class Retriever:
                         file_name,
                         file_type,
                         chunk_id,
+                        page_number,
                         content,
                         1 - (embedding <=> %s::vector) AS similarity
                     FROM document_chunks
@@ -79,8 +81,9 @@ class Retriever:
                 file_name=row[2],
                 file_type=row[3],
                 chunk_id=row[4],
-                content=row[5],
-                similarity=float(row[6]),
+                page_number=row[5],
+                content=row[6],
+                similarity=float(row[7]),
             )
             for row in rows
         ]

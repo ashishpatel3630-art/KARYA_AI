@@ -1,20 +1,30 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 from pypdf import PdfReader
 
 
-class PDFParser:
-    """Extract text from PDF documents."""
+@dataclass
+class PDFPage:
+    """Represents one extracted PDF page."""
 
-    def parse(self, file_path: str) -> str:
+    page_number: int
+    content: str
+
+
+class PDFParser:
+    """Extract page-aware text from PDF documents."""
+
+    def parse(self, file_path: str) -> list[PDFPage]:
         """
-        Extract text from all pages of a PDF.
+        Extract text from every page of a PDF.
 
         Args:
             file_path: Path to the PDF file.
 
         Returns:
-            Extracted text as a single string.
+            A list of PDFPage objects containing page numbers
+            and extracted text.
         """
 
         path = Path(file_path)
@@ -33,10 +43,25 @@ class PDFParser:
 
         pages = []
 
-        for page in reader.pages:
+        for page_number, page in enumerate(
+            reader.pages,
+            start=1,
+        ):
             text = page.extract_text()
 
-            if text:
-                pages.append(text.strip())
+            if not text:
+                continue
 
-        return "\n\n".join(pages)
+            text = text.strip()
+
+            if not text:
+                continue
+
+            pages.append(
+                PDFPage(
+                    page_number=page_number,
+                    content=text,
+                )
+            )
+
+        return pages

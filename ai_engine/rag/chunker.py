@@ -7,10 +7,11 @@ class DocumentChunk:
 
     chunk_id: int
     content: str
+    page_number: int | None = None
 
 
 class DocumentChunker:
-    """Split documents into overlapping text chunks."""
+    """Split documents into clean overlapping text chunks."""
 
     def __init__(
         self,
@@ -41,13 +42,14 @@ class DocumentChunker:
         start: int,
         end: int,
     ) -> int:
-        """Find a natural position to split the text."""
+        """Find a natural boundary for the end of a chunk."""
 
         if end >= len(text):
             return len(text)
 
         search_start = start + (self.chunk_size // 2)
 
+        # Prefer paragraph/newline boundaries.
         newline_position = text.rfind(
             "\n",
             search_start,
@@ -57,15 +59,23 @@ class DocumentChunker:
         if newline_position > start:
             return newline_position
 
-        sentence_position = text.rfind(
-            ". ",
-            search_start,
-            end,
-        )
+        # Prefer sentence boundaries.
+        sentence_positions = [
+            text.rfind(". ", search_start, end),
+            text.rfind("! ", search_start, end),
+            text.rfind("? ", search_start, end),
+        ]
 
-        if sentence_position > start:
-            return sentence_position + 1
+        valid_positions = [
+            position
+            for position in sentence_positions
+            if position > start
+        ]
 
+        if valid_positions:
+            return max(valid_positions) + 1
+
+        # Finally prefer whitespace.
         space_position = text.rfind(
             " ",
             search_start,
@@ -77,8 +87,45 @@ class DocumentChunker:
 
         return end
 
-    def chunk(self, content: str) -> list[DocumentChunk]:
-        """Split document content into overlapping chunks."""
+    def _move_to_next_word(
+        self,
+        text: str,
+        position: int,
+    ) -> int:
+        """Move forward until the beginning of the next word."""
+
+        if position >= len(text):
+            return len(text)
+
+        # If we are already at whitespace, skip it.
+        while (
+            position < len(text)
+            and text[position].isspace()
+        ):
+            position += 1
+
+        # If position is inside a word, move to its end.
+        while (
+            position < len(text)
+            and not text[position].isspace()
+        ):
+            position += 1
+
+        # Skip whitespace before the next word.
+        while (
+            position < len(text)
+            and text[position].isspace()
+        ):
+            position += 1
+
+        return position
+
+    def chunk(
+        self,
+        content: str,
+        page_number: int | None = None,
+    ) -> list[DocumentChunk]:
+        """Split content into clean overlapping chunks."""
 
         text = content.strip()
 
@@ -91,11 +138,13 @@ class DocumentChunker:
 
         start = 0
         chunk_id = 1
+        text_length = len(text)
 
-        while start < len(text):
+        while start < text_length:
+
             target_end = min(
                 start + self.chunk_size,
-                len(text),
+                text_length,
             )
 
             end = self._find_split_position(
@@ -104,6 +153,14 @@ class DocumentChunker:
                 target_end,
             )
 
+            # Ensure the chunk ends cleanly.
+            if end < text_length:
+                while (
+                    end < text_length
+                    and not text[end].isspace()
+                ):
+                    end += 1
+
             chunk_text = text[start:end].strip()
 
             if chunk_text:
@@ -111,18 +168,35 @@ class DocumentChunker:
                     DocumentChunk(
                         chunk_id=chunk_id,
                         content=chunk_text,
+                        page_number=page_number,
                     )
                 )
 
                 chunk_id += 1
 
-            if end >= len(text):
+            if end >= text_length:
                 break
 
-            next_start = end - self.chunk_overlap
+            # Calculate desired overlap.
+            overlap_start = max(
+                start + 1,
+                end - self.chunk_overlap,
+            )
 
+            # IMPORTANT:
+            # Never allow the next chunk to start
+            # in the middle of a word.
+            next_start = self._move_to_next_word(
+                text,
+                overlap_start,
+            )
+
+            # Safety protection.
             if next_start <= start:
                 next_start = end
+
+            if next_start >= text_length:
+                break
 
             start = next_start
 
