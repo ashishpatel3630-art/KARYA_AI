@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
-from app.authorization.dependencies import require_roles
+from app.authorization.dependencies import ROLE_PERMISSIONS, require_roles
 from app.core.database import get_db
 from app.models.user import User
 
@@ -14,8 +14,10 @@ router = APIRouter(prefix="/users", tags=["Users"])
 def current_profile(user: User = Depends(get_current_user)):
 	return {
 		"id": user.id,
+		"name": user.name,
 		"email": user.email,
 		"role": user.role,
+		"permissions": sorted(ROLE_PERMISSIONS.get(user.role.upper(), set())),
 		"is_active": user.is_active,
 		"is_verified": user.is_verified,
 	}

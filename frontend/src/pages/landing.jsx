@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+
 import Navbar from "../components/landing/Navbar";
 import Hero from "../components/landing/Hero";
 import TrustBar from "../components/landing/TrustBar";
@@ -12,12 +14,14 @@ import Stats from "../components/landing/Stats";
 import CTA from "../components/landing/CTA";
 import Footer from "../components/landing/Footer";
 
-function Landing({ onStart }) {
+function Landing() {
+  const navigate = useNavigate();
+
   return (
     <main className="min-h-screen bg-[#050505] text-white">
-      <Navbar onStart={onStart} />
+      <Navbar onRegister={() => navigate("/register")} onLogin={() => navigate("/login")} />
 
-      <Hero onStart={onStart} />
+      <Hero onStart={() => navigate("/login")} />
 
       <TrustBar />
 
@@ -37,7 +41,7 @@ function Landing({ onStart }) {
 
       <Stats />
 
-      <CTA onStart={onStart} />
+      <CTA onStart={() => navigate("/login")} />
 
       <Footer />
     </main>

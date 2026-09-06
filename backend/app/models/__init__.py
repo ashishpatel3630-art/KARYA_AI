@@ -6,3 +6,4 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.mfa import MFA
 from app.models.mfa_recovery_code import MFARecoveryCode
+from app.models.role_invitation import RoleInvitation

@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, LoaderCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { useAuth } from "../context/AuthContext";
 
-function Login({ onLogin }) {
+function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -15,20 +20,8 @@ function Login({ onLogin }) {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Unable to sign in. Check your credentials.");
-      }
-
-      localStorage.setItem("karya_access_token", data.access_token);
-      localStorage.setItem("karya_refresh_token", data.refresh_token);
-      onLogin();
+      await login(email, password);
+      navigate("/app");
     } catch (requestError) {
       setError(requestError.message || "The authentication service is unavailable.");
     } finally {
@@ -47,7 +40,8 @@ function Login({ onLogin }) {
         <section className="mx-auto w-full max-w-md border border-[#242424] bg-[#0A0A0A] p-8 sm:p-10">
           <p className="text-[10px] uppercase tracking-[0.25em] text-[#f43131]">Secure access</p>
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">Enter your workspace.</h1>
-          <p className="mt-4 text-sm leading-6 text-[#8A8A85]">Sign in to connect with your industrial operations desktop.</p>
+          <p className="mt-4 text-sm leading-6 text-[#8A8A85]">Sign in to connect with your KARYA operating system.</p>
+          {location.state?.message && <p className="mt-5 border border-[#2A2A2A] bg-[#111111] px-4 py-3 text-sm text-[#F5F5F5]">{location.state.message}</p>}
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             <label className="block text-xs uppercase tracking-widest text-[#8A8A85]">
@@ -77,6 +71,7 @@ function Login({ onLogin }) {
             {error && <p className="border border-[#6f2424] bg-[#241010] px-4 py-3 text-sm text-[#ff8b8b]">{error}</p>}
 
             <button
+              type="submit"
               disabled={isSubmitting}
               className="group flex w-full items-center justify-center gap-3 bg-white px-5 py-3.5 text-xs font-semibold uppercase tracking-widest text-black transition hover:bg-[#D8D8D8] disabled:cursor-wait disabled:opacity-60"
             >

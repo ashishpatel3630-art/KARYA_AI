@@ -8,7 +8,7 @@ const KaryaLoader = ({ onComplete }) => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          onComplete();
+          onComplete?.();
           return 100;
         }
 

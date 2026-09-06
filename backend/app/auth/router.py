@@ -1,4 +1,7 @@
 from datetime import datetime, timezone
+import hashlib
+import secrets
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -13,6 +16,8 @@ from app.auth.refresh import get_session_from_refresh_token
 from app.auth.schemas import (
     LoginRequest,
     MFAChallengeResponse,
+    InvitationRequest,
+    RegisterRequest,
     RefreshRequest,
     TokenResponse,
 )
@@ -27,6 +32,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.session import Session as SessionModel
 from app.models.mfa import MFA
+from app.models.role_invitation import RoleInvitation
 from app.models.user import User
 from app.security.brute_force import (
     clear_failed_logins,
@@ -37,12 +43,26 @@ from app.security.audit import record_security_event
 from app.security.rate_limit import enforce_auth_rate_limit
 from app.sessions.service import create_session
 from app.verification.service import create_verification_token
+from app.authorization.dependencies import require_roles
 
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
+
+
+def _hash_invitation_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _normalize_invited_role(role: str) -> str:
+    normalized = role.strip().upper()
+    if normalized == "MANAGER":
+        normalized = "STAFF"
+    if normalized not in {"STAFF", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only manager or admin invitations are supported")
+    return normalized
 
 
 # ============================================================
@@ -54,7 +74,7 @@ router = APIRouter(
     status_code=status.HTTP_201_CREATED,
 )
 def register(
-    data: LoginRequest,
+    data: RegisterRequest,
     request: Request,
     db: Session = Depends(get_db),
 ):
@@ -80,10 +100,38 @@ def register(
         data.password
     )
 
+    # Public registration never grants elevated roles. Invitation-based role
+    # assignment can be added without trusting a client-controlled role.
+    registration_secret = data.secret_key or secrets.token_urlsafe(32)
+    requested_role = data.role.strip().upper()
+    if requested_role == "MANAGER":
+        requested_role = "STAFF"
+    invitation = None
+    if requested_role in {"STAFF", "ADMIN"} or data.invitation_token:
+        if not data.invitation_token:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A valid role invitation is required")
+        invitation = db.scalar(
+            select(RoleInvitation)
+            .where(RoleInvitation.token_hash == _hash_invitation_token(data.invitation_token))
+            .with_for_update()
+        )
+        now = datetime.now(timezone.utc)
+        if invitation is None or invitation.used_at is not None or invitation.revoked_at is not None or invitation.expires_at <= now:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid or expired role invitation")
+        if invitation.email and invitation.email != email:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invitation email does not match")
+        requested_role = invitation.role
+
     user = User(
+        name=data.name.strip(),
         email=email,
         password_hash=hashed_password,
+        secret_key_hash=password_hasher.hash(registration_secret),
+        role=requested_role if invitation else "USER",
     )
+
+    if invitation:
+        invitation.used_at = datetime.now(timezone.utc)
 
     db.add(user)
     record_security_event(db, "user_registered", metadata={"email": email})
@@ -95,7 +143,27 @@ def register(
         "message": "User registered successfully",
         "user_id": str(user.id),
         "email": user.email,
+        "role": user.role,
     }
+
+
+@router.post("/invitations", status_code=status.HTTP_201_CREATED)
+def create_invitation(
+    data: InvitationRequest,
+    user: User = Depends(require_roles("ADMIN")),
+    db: Session = Depends(get_db),
+):
+    token = secrets.token_urlsafe(32)
+    invitation = RoleInvitation(
+        token_hash=_hash_invitation_token(token),
+        role=_normalize_invited_role(data.role),
+        email=data.email.lower() if data.email else None,
+        created_by=user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=data.expires_in_hours),
+    )
+    db.add(invitation)
+    db.commit()
+    return {"invitation_token": token, "role": invitation.role, "expires_at": invitation.expires_at}
 
 
 # ============================================================

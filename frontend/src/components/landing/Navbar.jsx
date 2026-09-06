@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
-function Navbar({ onStart }) {
+function Navbar({ onRegister, onLogin }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -28,10 +28,16 @@ function Navbar({ onStart }) {
         </div>
 
         <button
-          onClick={onStart}
+          onClick={onRegister}
           className="hidden border border-[#2A2A2A] bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-widest text-black transition hover:bg-[#D8D8D8] md:block"
         >
-          Get Started
+          Register
+        </button>
+        <button
+          onClick={onLogin}
+          className="hidden border border-[#2A2A2A] bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-widest text-black transition hover:bg-[#D8D8D8] md:block"
+        >
+          Login 
         </button>
 
         <button
