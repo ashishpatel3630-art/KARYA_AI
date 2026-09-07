@@ -95,9 +95,7 @@ class PDFOCRService:
         pdf_path: str,
         preprocess: bool = True,
     ) -> OCRPDFResult:
-        """
-        Extract OCR text from every page of a scanned PDF.
-        """
+        """Extract OCR text from every page of a scanned PDF."""
 
         if not pdf_path or not pdf_path.strip():
             raise ValueError(
