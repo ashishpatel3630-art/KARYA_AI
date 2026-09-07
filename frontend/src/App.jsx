@@ -1,95 +1,62 @@
-import { useEffect, useState } from "react";
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { useState } from "react";
 
-import AppShell from "./components/layout/AppShell";
-import KaryaLoader from "./components/loading/KaryaLoading";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import Landing from "./pages/landing";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Overview from "./pages/Overview";
-import AgentsPage from "./pages/AgentsPage";
-import TasksPage from "./pages/TasksPage";
-import WorkflowsPage from "./pages/WorkflowsPage";
-import KnowledgePage from "./pages/KnowledgePage";
-import IntegrationsPage from "./pages/IntegrationsPage";
-import ActivityPage from "./pages/ActivityPage";
-import ApprovalsPage from "./pages/ApprovalsPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import SettingsPage from "./pages/SettingsPage";
+import KaryaLoading from "./components/loading/KaryaLoading";
 
-function ProtectedRoute() {
-  const { isAuthenticated, authReady } = useAuth();
+import Navbar from "./components/landing/Navbar";
+import Hero from "./components/landing/Hero";
+import TrustBar from "./components/landing/TrustBar";
+import Problem from "./components/landing/Problem";
+import Solution from "./components/landing/Solution";
+import HowItWorks from "./components/landing/HowItWorks";
+import Features from "./components/landing/Features";
+import AIEmployeePreview from "./components/landing/AIEmployeePreview";
+import UseCases from "./components/landing/UseCases";
+import Security from "./components/landing/Security";
+import Stats from "./components/landing/Stats";
+import CTA from "./components/landing/CTA";
+import Footer from "./components/landing/Footer";
 
-  if (!authReady) {
-    return <KaryaLoader />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <AppShell />;
-}
-
-function PublicRoute() {
-  const { isAuthenticated, authReady } = useAuth();
-
-  if (!authReady) {
-    return <KaryaLoader />;
-  }
-
-  if (isAuthenticated) {
-    return <Navigate to="/app" replace />;
-  }
-
-  return <Outlet />;
-}
-
-function AppRoutes() {
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsReady(true), 1200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!isReady) {
-    return <KaryaLoader />;
-  }
+function App() {
+  const [loading, setLoading] = useState(true);
 
   return (
-    <Routes>
-      <Route element={<PublicRoute />}>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-      </Route>
+    <div className="min-h-screen bg-[#050505] text-white">
+      {loading && (
+        <KaryaLoading
+          duration={5200}
+          onComplete={() => setLoading(false)}
+        />
+      )}
 
-      <Route element={<ProtectedRoute />}>
-        <Route path="/app" element={<Overview />} />
-        <Route path="/app/agents" element={<AgentsPage />} />
-        <Route path="/app/tasks" element={<TasksPage />} />
-        <Route path="/app/workflows" element={<WorkflowsPage />} />
-        <Route path="/app/knowledge" element={<KnowledgePage />} />
-        <Route path="/app/integrations" element={<IntegrationsPage />} />
-        <Route path="/app/activity" element={<ActivityPage />} />
-        <Route path="/app/approvals" element={<ApprovalsPage />} />
-        <Route path="/app/analytics" element={<AnalyticsPage />} />
-        <Route path="/app/settings" element={<SettingsPage />} />
-      </Route>
+      <Navbar />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      <main>
+        <Hero />
+
+        <TrustBar />
+
+        <Problem />
+
+        <Solution />
+
+        <HowItWorks />
+
+        <Features />
+
+        <AIEmployeePreview />
+
+        <UseCases />
+
+        <Security />
+
+        <Stats />
+
+        <CTA />
+      </main>
+
+      <Footer />
+    </div>
   );
 }
 
-export default function App() {
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </AuthProvider>
-  );
-}
+export default App;

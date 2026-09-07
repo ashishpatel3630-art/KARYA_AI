@@ -1,91 +1,155 @@
-import {
-  Activity,
-  Brain,
-  Database,
-  Workflow,
-  Shield,
-  BarChart3,
-} from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 
-const features = [
+const FEATURES = [
   {
-    icon: Activity,
-    title: "Continuous Monitoring",
+    id: "01",
+    title: "REPOSITORY INTELLIGENCE",
     description:
-      "Monitor operational systems and detect important changes in real time.",
+      "Understand the structure of real systems before acting on them.",
+    tags: ["AST", "DEPENDENCIES", "ARCHITECTURE"],
   },
   {
-    icon: Brain,
-    title: "Operational Intelligence",
+    id: "02",
+    title: "CODE RAG",
     description:
-      "Transform raw operational data into contextual decisions and recommendations.",
+      "Retrieve relevant code and documentation context instead of loading entire repositories.",
+    tags: ["EMBEDDINGS", "PGVECTOR", "SEMANTIC SEARCH"],
   },
   {
-    icon: Database,
-    title: "Data Intelligence",
+    id: "03",
+    title: "MULTI-SOLUTION RESEARCH",
     description:
-      "Connect databases, APIs, documents, sensors, and internal systems.",
+      "Generate competing engineering approaches and compare their trade-offs.",
+    tags: ["RESEARCH", "DECISION", "TRADE-OFFS"],
   },
   {
-    icon: Workflow,
-    title: "Autonomous Workflows",
+    id: "04",
+    title: "BENCHMARK ENGINE",
     description:
-      "Trigger and execute predefined operational workflows automatically.",
+      "Measure latency, throughput, memory, cost, complexity and test impact.",
+    tags: ["LATENCY", "CPU", "MEMORY"],
   },
   {
-    icon: Shield,
-    title: "Confidential by Design",
+    id: "05",
+    title: "CONTROLLED EXECUTION",
     description:
-      "Keep sensitive operational intelligence protected with controlled access.",
+      "Run AI-generated changes through permission checks and isolated environments.",
+    tags: ["SANDBOX", "POLICY", "PERMISSIONS"],
   },
   {
-    icon: BarChart3,
-    title: "Performance Intelligence",
+    id: "06",
+    title: "AGENT TRACE",
     description:
-      "Track operational performance, anomalies, trends, and system health.",
+      "Maintain a complete decision trail from planning through implementation.",
+    tags: ["TRACE", "AUDIT", "OBSERVABILITY"],
   },
 ];
 
-function Features() {
-  return (
-    <section id="features" className="border-b border-[#1A1A1A] bg-[#050505] py-28">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.25em] text-[#f43131]">
-            Capabilities
-          </p>
+export default function Features() {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
 
-          <h2 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-6xl">
-            Intelligence built around the operation.
-          </h2>
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { threshold: 0.15 }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <section
+      id="capabilities"
+      ref={ref}
+      className="border-t border-[#161616] bg-[#080808] py-32 sm:py-40"
+    >
+      <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14">
+        <div className="mb-16 flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
+          <div>
+            <div className="mb-7 flex items-center gap-3">
+              <span className="h-1.5 w-1.5 bg-white" />
+
+              <span className="font-mono text-[8px] tracking-[0.28em] text-[#666661]">
+                CORE CAPABILITIES
+              </span>
+            </div>
+
+            <h2 className="max-w-[800px] text-[clamp(3rem,5vw,5.7rem)] font-semibold uppercase leading-[0.88] tracking-[-0.07em] text-white">
+              BUILT FOR
+              <br />
+              <span className="text-[#777772]">
+                REAL ENGINEERING.
+              </span>
+            </h2>
+          </div>
+
+          <span className="font-mono text-[8px] tracking-[0.2em] text-[#41413D]">
+            06 SYSTEMS
+          </span>
         </div>
 
-        <div className="mt-20 grid border-l border-t border-[#2A2A2A] md:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => {
-            const Icon = feature.icon;
+        <div className="grid gap-px bg-[#242424] md:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map((feature, index) => (
+            <article
+              key={feature.id}
+              className={`
+                group
+                relative
+                min-h-[300px]
+                bg-[#080808]
+                p-7
+                transition-all
+                duration-1000
+                hover:bg-[#0C0C0C]
+                ${
+                  visible
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-8 opacity-0"
+                }
+              `}
+              style={{
+                transitionDelay: `${index * 100}ms`,
+              }}
+            >
+              <div className="flex items-start justify-between">
+                <span className="font-mono text-[8px] text-[#454540]">
+                  {feature.id}
+                </span>
 
-            return (
-              <div
-                key={feature.title}
-                className="border-b border-r border-[#2A2A2A] p-8"
-              >
-                <Icon size={22} className="text-[#8A8A85]" />
+                <span className="font-mono text-[7px] text-[#383834]">
+                  KRY
+                </span>
+              </div>
 
-                <h3 className="mt-14 text-lg font-medium text-white">
+              <div className="mt-20">
+                <h3 className="max-w-[260px] font-mono text-[11px] font-semibold tracking-[0.16em] text-[#D0D0CB] transition-colors duration-500 group-hover:text-white">
                   {feature.title}
                 </h3>
 
-                <p className="mt-4 text-sm leading-6 text-[#8A8A85]">
+                <p className="mt-4 max-w-[310px] text-[12px] leading-6 text-[#60605B]">
                   {feature.description}
                 </p>
               </div>
-            );
-          })}
+
+              <div className="absolute bottom-7 left-7 flex flex-wrap gap-2">
+                {feature.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="border border-[#292929] px-2 py-1 font-mono text-[6px] tracking-[0.15em] text-[#50504B]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              <span className="absolute right-7 top-20 h-px w-0 bg-[#777772] transition-all duration-700 group-hover:w-12" />
+            </article>
+          ))}
         </div>
       </div>
     </section>
   );
 }
-
-export default Features;

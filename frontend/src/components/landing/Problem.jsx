@@ -1,59 +1,140 @@
-function Problem() {
-  const problems = [
-    {
-      number: "01",
-      title: "Fragmented Operations",
-      description:
-        "Critical information is distributed across dashboards, databases, machines, documents, and teams.",
-    },
-    {
-      number: "02",
-      title: "Slow Decisions",
-      description:
-        "Human teams spend valuable time collecting information before they can act on it.",
-    },
-    {
-      number: "03",
-      title: "Reactive Workflows",
-      description:
-        "Most operational systems report what happened instead of continuously identifying what should happen next.",
-    },
-  ];
+import React, { useEffect, useRef, useState } from "react";
+
+const PROBLEMS = [
+  {
+    number: "01",
+    title: "FRAGMENTED KNOWLEDGE",
+    text: "Critical information lives across repositories, documents, systems and teams.",
+  },
+  {
+    number: "02",
+    title: "SLOW ENGINEERING DECISIONS",
+    text: "Teams spend valuable time understanding context before they can act.",
+  },
+  {
+    number: "03",
+    title: "UNCONTROLLED AI EXECUTION",
+    text: "Generic AI tools lack the security, traceability and execution boundaries industrial work requires.",
+  },
+];
+
+export default function Problem() {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { threshold: 0.18 }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <section className="border-b border-[#1A1A1A] bg-[#050505] py-28">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        <div className="max-w-2xl">
-          <p className="text-[10px] uppercase tracking-[0.25em] text-[#f43131]">
-            The Problem
-          </p>
+    <section
+      ref={ref}
+      className="relative overflow-hidden bg-[#050505] py-32 sm:py-40"
+    >
+      <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14">
+        <div className="grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
+          <div
+            className={`
+              transition-all
+              duration-1000
+              ${
+                visible
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-8 opacity-0"
+              }
+            `}
+          >
+            <div className="mb-7 flex items-center gap-3">
+              <span className="h-1.5 w-1.5 bg-white" />
 
-          <h2 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            Industrial operations are drowning in information.
-          </h2>
-        </div>
-
-        <div className="mt-20 grid border-l border-t border-[#2A2A2A] md:grid-cols-3">
-          {problems.map((problem) => (
-            <div
-              key={problem.number}
-              className="border-b border-r border-[#2A2A2A] p-8"
-            >
-              <span className="text-xs text-[#555]">{problem.number}</span>
-
-              <h3 className="mt-16 text-xl font-medium text-white">
-                {problem.title}
-              </h3>
-
-              <p className="mt-4 text-sm leading-6 text-[#8A8A85]">
-                {problem.description}
-              </p>
+              <span className="font-mono text-[8px] tracking-[0.28em] text-[#666661]">
+                THE PROBLEM
+              </span>
             </div>
-          ))}
+
+            <h2 className="max-w-[620px] text-[clamp(2.8rem,5vw,5.8rem)] font-semibold uppercase leading-[0.9] tracking-[-0.065em] text-white">
+              INDUSTRIAL WORK
+              <br />
+              <span className="text-[#74746F]">
+                CANNOT RUN ON
+              </span>
+              <br />
+              GENERIC AI.
+            </h2>
+          </div>
+
+          <div className="border-l border-[#202020] pl-6 sm:pl-10">
+            <p
+              className={`
+                max-w-[580px]
+                text-[15px]
+                leading-7
+                text-[#858580]
+                transition-all
+                delay-200
+                duration-1000
+                ${
+                  visible
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-8 opacity-0"
+                }
+              `}
+            >
+              Confidential engineering environments need more
+              than generated answers. They need intelligence that
+              understands context, retrieves evidence, evaluates
+              alternatives and executes within controlled boundaries.
+            </p>
+
+            <div className="mt-14">
+              {PROBLEMS.map((problem, index) => (
+                <div
+                  key={problem.number}
+                  className={`
+                    group
+                    border-t
+                    border-[#202020]
+                    py-7
+                    transition-all
+                    duration-1000
+                    ${
+                      visible
+                        ? "translate-x-0 opacity-100"
+                        : "translate-x-8 opacity-0"
+                    }
+                  `}
+                  style={{
+                    transitionDelay: `${300 + index * 120}ms`,
+                  }}
+                >
+                  <div className="grid gap-5 sm:grid-cols-[70px_1fr]">
+                    <span className="font-mono text-[8px] text-[#454540]">
+                      {problem.number}
+                    </span>
+
+                    <div>
+                      <h3 className="font-mono text-[10px] font-semibold tracking-[0.18em] text-[#D0D0CB] transition-colors duration-300 group-hover:text-white">
+                        {problem.title}
+                      </h3>
+
+                      <p className="mt-3 max-w-[470px] text-[13px] leading-6 text-[#666661]">
+                        {problem.text}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </section>
   );
 }
-
-export default Problem;

@@ -1,59 +1,212 @@
-function HowItWorks() {
-  const steps = [
-    {
-      number: "01",
-      title: "Connect",
-      text: "Connect KARYA to your existing operational systems and data sources.",
-    },
-    {
-      number: "02",
-      title: "Configure",
-      text: "Define business rules, workflows, permissions, and operational objectives.",
-    },
-    {
-      number: "03",
-      title: "Deploy",
-      text: "Deploy specialized AI employees for specific operational functions.",
-    },
-    {
-      number: "04",
-      title: "Operate",
-      text: "KARYA continuously monitors, reasons, and executes tasks.",
-    },
-  ];
+import React, { useEffect, useRef, useState } from "react";
+
+const STEPS = [
+  ["01", "CONNECT", "Connect a repository and establish the project context."],
+  ["02", "ANALYZE", "Map architecture, dependencies, files and system relationships."],
+  ["03", "RESEARCH", "Retrieve relevant knowledge and investigate possible approaches."],
+  ["04", "COMPARE", "Generate multiple solutions and evaluate trade-offs."],
+  ["05", "BENCHMARK", "Measure performance, cost, complexity and test impact."],
+  ["06", "DECIDE", "Select the strongest engineering path."],
+  ["07", "EXECUTE", "Implement through controlled tools and sandboxed execution."],
+  ["08", "VERIFY", "Test, debug, review and prepare the final change."],
+];
+
+export default function HowItWorks() {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { threshold: 0.15 }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    const interval = window.setInterval(() => {
+      setActive((current) =>
+        current === STEPS.length - 1
+          ? 0
+          : current + 1
+      );
+    }, 1800);
+
+    return () => clearInterval(interval);
+  }, [visible]);
 
   return (
-    <section className="border-b border-[#1A1A1A] bg-[#0A0A0A] py-28">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-[#f43131]">
-          How It Works
-        </p>
+    <section
+      id="how-it-works"
+      ref={ref}
+      className="relative overflow-hidden bg-[#050505] py-32 sm:py-40"
+    >
+      <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14">
+        <div className="grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <div className="mb-7 flex items-center gap-3">
+              <span className="h-1.5 w-1.5 bg-white" />
 
-        <h2 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-6xl">
-          From data to action.
-        </h2>
-
-        <div className="mt-20">
-          {steps.map((step) => (
-            <div
-              key={step.number}
-              className="grid border-t border-[#2A2A2A] py-8 md:grid-cols-[100px_250px_1fr]"
-            >
-              <span className="text-xs text-[#555]">{step.number}</span>
-
-              <h3 className="mt-4 text-xl font-medium text-white md:mt-0">
-                {step.title}
-              </h3>
-
-              <p className="mt-4 max-w-xl text-sm leading-6 text-[#8A8A85] md:mt-0">
-                {step.text}
-              </p>
+              <span className="font-mono text-[8px] tracking-[0.28em] text-[#666661]">
+                HOW IT WORKS
+              </span>
             </div>
-          ))}
+
+            <h2
+              className={`
+                text-[clamp(3rem,5.5vw,6rem)]
+                font-semibold
+                uppercase
+                leading-[0.88]
+                tracking-[-0.07em]
+                transition-all
+                duration-1000
+                ${
+                  visible
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-10 opacity-0"
+                }
+              `}
+            >
+              ONE
+              <br />
+              CONTINUOUS
+              <br />
+              <span className="text-[#777772]">
+                INTELLIGENCE LOOP.
+              </span>
+            </h2>
+
+            <p className="mt-8 max-w-[500px] text-[14px] leading-7 text-[#666661]">
+              KARYA turns an engineering problem into a
+              structured decision and execution pipeline.
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="absolute left-[18px] top-5 bottom-5 w-px bg-[#222222]" />
+
+            {STEPS.map((step, index) => {
+              const isActive = active === index;
+
+              return (
+                <button
+                  key={step[0]}
+                  type="button"
+                  onMouseEnter={() => setActive(index)}
+                  className={`
+                    group
+                    relative
+                    flex
+                    w-full
+                    items-start
+                    gap-7
+                    py-4
+                    text-left
+                    transition-all
+                    duration-500
+                    ${
+                      visible
+                        ? "translate-x-0 opacity-100"
+                        : "translate-x-8 opacity-0"
+                    }
+                  `}
+                  style={{
+                    transitionDelay: `${index * 80}ms`,
+                  }}
+                >
+                  <span
+                    className={`
+                      relative
+                      z-10
+                      mt-1
+                      flex
+                      h-9
+                      w-9
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-full
+                      border
+                      bg-[#050505]
+                      font-mono
+                      text-[7px]
+                      transition-all
+                      duration-500
+                      ${
+                        isActive
+                          ? "border-white text-white"
+                          : "border-[#333333] text-[#555550]"
+                      }
+                    `}
+                  >
+                    {step[0]}
+                  </span>
+
+                  <div className="flex-1 border-b border-[#191919] pb-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <h3
+                        className={`
+                          font-mono
+                          text-[10px]
+                          font-semibold
+                          tracking-[0.2em]
+                          transition-colors
+                          ${
+                            isActive
+                              ? "text-white"
+                              : "text-[#696964]"
+                          }
+                        `}
+                      >
+                        {step[1]}
+                      </h3>
+
+                      <span
+                        className={`
+                          font-mono
+                          text-[7px]
+                          transition-all
+                          ${
+                            isActive
+                              ? "translate-x-0 opacity-100"
+                              : "-translate-x-2 opacity-0"
+                          }
+                        `}
+                      >
+                        ACTIVE
+                      </span>
+                    </div>
+
+                    <p
+                      className={`
+                        mt-2
+                        max-w-[540px]
+                        text-[12px]
+                        leading-6
+                        transition-colors
+                        ${
+                          isActive
+                            ? "text-[#858580]"
+                            : "text-[#4D4D49]"
+                        }
+                      `}
+                    >
+                      {step[2]}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>
   );
 }
-
-export default HowItWorks;
