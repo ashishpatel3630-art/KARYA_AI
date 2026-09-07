@@ -61,7 +61,7 @@ export default function CTA() {
           </p>
 
           <a
-            href="/app"
+            href="/login"
             className="
               group
               mx-auto

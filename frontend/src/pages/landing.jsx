@@ -43,7 +43,7 @@ function Landing() {
 
       <CTA onStart={() => navigate("/login")} />
 
-      <Footer />
+      <Footer onLogin={() => navigate("/login")} />
     </main>
   );
 }

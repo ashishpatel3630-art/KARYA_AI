@@ -30,7 +30,7 @@ const COLUMNS = [
   },
 ];
 
-export default function Footer() {
+export default function Footer({ onLogin }) {
   const scrollTo = (label) => {
     const map = {
       Product: "product",
@@ -89,6 +89,21 @@ export default function Footer() {
                 SYSTEM OPERATIONAL
               </span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onLogin) {
+                  onLogin();
+                  return;
+                }
+
+                window.location.href = "/login";
+              }}
+              className="mt-8 border border-[#383838] px-4 py-3 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-white transition hover:border-white hover:bg-white hover:text-black"
+            >
+              LOGIN TO KARYA →
+            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
