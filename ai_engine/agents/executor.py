@@ -1,9 +1,11 @@
+
+from __future__ import annotations
+
 import re
 from typing import Any
 
 from llm.schemas import LLMMessage, LLMRequest
 from llm.service import LLMService
-
 from tools.registry import ToolRegistry, create_default_registry
 from tools.schemas import ToolCall
 
@@ -16,22 +18,32 @@ class AgentExecutor:
     and the local LLM.
 
     Responsibilities:
-
     1. Execute deterministic tools.
     2. Maintain verified execution results.
     3. Resolve dependencies between steps.
-    4. Prevent fabricated tool results.
-    5. Execute normal LLM reasoning steps when no tool is required.
-    6. Record every tool call in AgentState.
+    4. Resolve $step_N placeholders.
+    5. Prevent fabricated tool results.
+    6. Execute normal LLM reasoning steps.
+    7. Record tool calls and execution results.
+    8. Keep all execution local.
     """
 
     PREVIOUS_RESULT_TOKEN = "$PREVIOUS_RESULT"
+
+    # Correct pattern for:
+    # $step_1
+    # $step_2
+    # $step_10
+    STEP_RESULT_PATTERN = re.compile(
+        r"\$step_(\d+)",
+        re.IGNORECASE,
+    )
 
     def __init__(
         self,
         llm_service: LLMService | None = None,
         tool_registry: ToolRegistry | None = None,
-    ):
+    ) -> None:
         self.llm_service = (
             llm_service or LLMService()
         )
@@ -55,7 +67,7 @@ class AgentExecutor:
         Tool steps are executed through ToolRegistry.
 
         Non-tool steps are executed by the local LLM using
-        only verified information already present in state.
+        the actual prompt supplied by the planner.
         """
 
         if not isinstance(step, dict):
@@ -97,7 +109,6 @@ class AgentExecutor:
         # ---------------------------------------------------------
 
         if tool_name is not None:
-
             if not isinstance(tool_name, str):
                 raise ValueError(
                     "Tool name must be a string or null."
@@ -135,8 +146,43 @@ class AgentExecutor:
         # LLM EXECUTION
         # ---------------------------------------------------------
 
+        resolved_arguments = (
+            self._resolve_arguments(
+                state=state,
+                value=arguments,
+            )
+        )
+
+        if not isinstance(
+            resolved_arguments,
+            dict,
+        ):
+            raise ValueError(
+                "Resolved LLM arguments must be a dictionary."
+            )
+
+        prompt = resolved_arguments.get(
+            "prompt"
+        )
+
+        if prompt is not None:
+            if not isinstance(
+                prompt,
+                str,
+            ):
+                raise ValueError(
+                    "LLM step prompt must be a string."
+                )
+
+            return self._execute_llm_step(
+                state=state,
+                prompt=prompt,
+                action=action,
+            )
+
         return self._execute_llm_step(
             state=state,
+            prompt=action,
             action=action,
         )
 
@@ -204,13 +250,32 @@ class AgentExecutor:
     def _execute_llm_step(
         self,
         state: AgentState,
-        action: str,
+        prompt: str,
+        action: str | None = None,
     ) -> str:
         """
         Execute a non-tool step using the local LLM.
 
-        The LLM receives only verified results.
+        The supplied prompt has already been resolved.
+
+        The LLM is explicitly instructed to use only verified
+        execution results and never fabricate missing information.
         """
+
+        if not isinstance(
+            prompt,
+            str,
+        ):
+            raise ValueError(
+                "LLM prompt must be a string."
+            )
+
+        prompt = prompt.strip()
+
+        if not prompt:
+            raise ValueError(
+                "LLM prompt cannot be empty."
+            )
 
         verified_results = (
             self._get_verified_results_text(
@@ -218,51 +283,68 @@ class AgentExecutor:
             )
         )
 
-        prompt = f"""
-You are the execution component of KARYA,
+        execution_context = (
+            "KARYA VERIFIED EXECUTION CONTEXT\n\n"
+            "The following information was produced by real "
+            "local tools or previous local execution steps.\n\n"
+            "VERIFIED RESULTS:\n\n"
+            f"{verified_results}\n\n"
+            "IMPORTANT:\n"
+            "The VERIFIED RESULTS section is evidence only.\n"
+            "Do not assume information that is not present there."
+        )
+
+        system_prompt = """
+You are a precise execution component of KARYA,
 a sovereign industrial AI system.
 
-Execute the following task step.
+Your job is to execute the requested reasoning step
+using ONLY the information supplied in the user prompt
+and verified execution context.
 
-USER REQUEST:
-{state.user_input}
+STRICT SAFETY RULES:
 
-CURRENT STEP:
-{action}
-
-VERIFIED PREVIOUS RESULTS:
-{verified_results}
-
-STRICT RULES:
-
-- Use only verified information provided above.
-- Do not invent facts.
-- Do not fabricate tool execution.
-- Do not claim access to external systems.
-- Do not claim access to sensors.
-- Do not claim access to databases unless a real tool
+- Never invent facts.
+- Never invent measurements.
+- Never invent thresholds.
+- Never invent limits.
+- Never invent calculations.
+- Never invent tool execution.
+- Never claim access to external systems.
+- Never claim access to sensors.
+- Never claim access to databases unless a real tool
   provided that information.
-- Do not claim access to files unless a real tool
+- Never claim access to files unless a real tool
   provided that information.
-- Do not claim network access.
-- If required information is unavailable,
-  clearly state that it is unavailable.
-- Keep the result concise.
+- Never claim network access.
+- Never use outside knowledge when the task explicitly
+  requires document-grounded information.
+- If required information is missing, explicitly say so.
+- Preserve exact units.
+- Preserve exact values.
+- If a value is unavailable, return the required
+  unavailable marker when the user prompt specifies one.
+- Keep the response concise and directly related
+  to the requested execution step.
 """.strip()
+
+        full_prompt = (
+            f"{execution_context}\n\n"
+            "EXECUTION STEP:\n\n"
+            f"{action or 'Execute the requested task.'}\n\n"
+            "TASK PROMPT:\n\n"
+            f"{prompt}"
+        )
 
         request = LLMRequest(
             messages=[
                 LLMMessage(
                     role="system",
-                    content=(
-                        "You are a precise industrial AI "
-                        "execution engine. "
-                        "Never fabricate information."
-                    ),
+                    content=system_prompt,
                 ),
                 LLMMessage(
                     role="user",
-                    content=prompt,
+                    content=full_prompt,
                 ),
             ],
             temperature=0.1,
@@ -311,9 +393,24 @@ STRICT RULES:
             state.completed = True
             return state
 
+        step_index = state.current_step
+
         step = state.plan[
-            state.current_step
+            step_index
         ]
+
+        if not isinstance(
+            step,
+            dict,
+        ):
+            raise ValueError(
+                f"Plan step {step_index + 1} is invalid."
+            )
+
+        step_id = step.get(
+            "step_id",
+            f"step_{step_index + 1}",
+        )
 
         try:
             result = self.execute_step(
@@ -323,11 +420,14 @@ STRICT RULES:
 
             state.tool_results.append(
                 {
-                    "step": (
-                        state.current_step + 1
+                    "step": step_index + 1,
+                    "step_id": step_id,
+                    "action": step.get(
+                        "action"
                     ),
-                    "action": step["action"],
-                    "tool": step.get("tool"),
+                    "tool": step.get(
+                        "tool"
+                    ),
                     "arguments": step.get(
                         "arguments",
                         {},
@@ -347,10 +447,8 @@ STRICT RULES:
             return state
 
         except Exception as exc:
-
             state.error = str(exc)
             state.completed = False
-
             raise
 
     # =============================================================
@@ -366,60 +464,268 @@ STRICT RULES:
         """
         Resolve dynamic arguments before tool execution.
 
-        Supported dependency:
+        Supported dependencies:
 
             $PREVIOUS_RESULT
+            $step_1
+            $step_2
+            $step_3
+
+        References can appear anywhere inside strings.
+        """
+
+        resolved = self._resolve_arguments(
+            state=state,
+            value=arguments,
+        )
+
+        if not isinstance(
+            resolved,
+            dict,
+        ):
+            raise ValueError(
+                "Resolved tool arguments must be a dictionary."
+            )
+
+        # Calculator requires numeric substitution.
+        if tool_name == "calculator":
+            resolved = self._resolve_calculator_arguments(
+                state=state,
+                arguments=resolved,
+            )
+
+        return resolved
+
+    # =============================================================
+    # GENERIC ARGUMENT RESOLUTION
+    # =============================================================
+
+    def _resolve_arguments(
+        self,
+        state: AgentState,
+        value: Any,
+    ) -> Any:
+        """
+        Recursively resolve execution references.
+
+        Supports:
+
+            $PREVIOUS_RESULT
+            $step_1
+            $step_2
+            $step_3
+
+        References can appear anywhere inside a string.
 
         Example:
 
-            {
-                "expression":
-                    "$PREVIOUS_RESULT - 80"
-            }
+            "DOCUMENT:\\n$step_1"
 
-        The previous verified result is resolved before
-        execution.
+        becomes:
+
+            "DOCUMENT:\\n[actual step 1 result]"
         """
 
-        resolved_arguments = dict(
-            arguments
-        )
+        # ---------------------------------------------------------
+        # DICTIONARY
+        # ---------------------------------------------------------
 
-        for key, value in list(
-            resolved_arguments.items()
+        if isinstance(
+            value,
+            dict,
         ):
+            return {
+                key: self._resolve_arguments(
+                    state=state,
+                    value=item,
+                )
+                for key, item in value.items()
+            }
 
-            if not isinstance(value, str):
-                continue
+        # ---------------------------------------------------------
+        # LIST
+        # ---------------------------------------------------------
 
-            if (
-                self.PREVIOUS_RESULT_TOKEN
-                not in value
-            ):
-                continue
+        if isinstance(
+            value,
+            list,
+        ):
+            return [
+                self._resolve_arguments(
+                    state=state,
+                    value=item,
+                )
+                for item in value
+            ]
 
+        # ---------------------------------------------------------
+        # TUPLE
+        # ---------------------------------------------------------
+
+        if isinstance(
+            value,
+            tuple,
+        ):
+            return tuple(
+                self._resolve_arguments(
+                    state=state,
+                    value=item,
+                )
+                for item in value
+            )
+
+        # ---------------------------------------------------------
+        # NON-STRING
+        # ---------------------------------------------------------
+
+        if not isinstance(
+            value,
+            str,
+        ):
+            return value
+
+        resolved = value
+
+        # ---------------------------------------------------------
+        # $PREVIOUS_RESULT
+        # ---------------------------------------------------------
+
+        if (
+            self.PREVIOUS_RESULT_TOKEN
+            in resolved
+        ):
             previous_result = (
                 self._get_previous_result(
                     state
                 )
             )
 
-            replacement = (
-                self._resolve_previous_result_value(
-                    previous_result=previous_result,
-                    tool_name=tool_name,
-                    argument_name=key,
+            resolved = resolved.replace(
+                self.PREVIOUS_RESULT_TOKEN,
+                previous_result,
+            )
+
+        # ---------------------------------------------------------
+        # $step_N
+        # ---------------------------------------------------------
+
+        matches = list(
+            self.STEP_RESULT_PATTERN.finditer(
+                resolved
+            )
+        )
+
+        # Replace from right to left so string indexes
+        # remain valid while replacing multiple references.
+        for match in reversed(
+            matches
+        ):
+            step_number = int(
+                match.group(1)
+            )
+
+            step_result = (
+                self._get_step_result(
+                    state=state,
+                    step_number=step_number,
                 )
             )
 
-            resolved_arguments[key] = (
-                value.replace(
-                    self.PREVIOUS_RESULT_TOKEN,
-                    replacement,
+            start, end = match.span()
+
+            resolved = (
+                resolved[:start]
+                + step_result
+                + resolved[end:]
+            )
+
+        return resolved
+
+    # =============================================================
+    # CALCULATOR ARGUMENT RESOLUTION
+    # =============================================================
+
+    def _resolve_calculator_arguments(
+        self,
+        state: AgentState,
+        arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Convert calculator dependency references into
+        numeric values where required.
+
+        Example:
+
+            "$step_2 - 80"
+
+        where step 2 contains:
+
+            "92 C"
+
+        becomes:
+
+            "92 - 80"
+        """
+
+        resolved = dict(
+            arguments
+        )
+
+        expression = resolved.get(
+            "expression"
+        )
+
+        if not isinstance(
+            expression,
+            str,
+        ):
+            return resolved
+
+        def replace_step(
+            match: re.Match[str],
+        ) -> str:
+            step_number = int(
+                match.group(1)
+            )
+
+            result = (
+                self._get_step_result(
+                    state=state,
+                    step_number=step_number,
                 )
             )
 
-        return resolved_arguments
+            return self._extract_numeric_value(
+                result
+            )
+
+        expression = self.STEP_RESULT_PATTERN.sub(
+            replace_step,
+            expression,
+        )
+
+        if (
+            self.PREVIOUS_RESULT_TOKEN
+            in expression
+        ):
+            previous_result = (
+                self._get_previous_result(
+                    state
+                )
+            )
+
+            expression = expression.replace(
+                self.PREVIOUS_RESULT_TOKEN,
+                self._extract_numeric_value(
+                    previous_result
+                ),
+            )
+
+        resolved[
+            "expression"
+        ] = expression
+
+        return resolved
 
     # =============================================================
     # PREVIOUS RESULT
@@ -470,31 +776,146 @@ STRICT RULES:
         return result_text
 
     # =============================================================
-    # PREVIOUS RESULT RESOLUTION
+    # STEP RESULT
     # =============================================================
 
-    def _resolve_previous_result_value(
+    def _get_step_result(
         self,
-        previous_result: str,
-        tool_name: str,
-        argument_name: str,
+        state: AgentState,
+        step_number: int,
     ) -> str:
         """
-        Convert a previous result into a value suitable
-        for the consuming tool.
+        Return the verified result of a specific
+        previously executed step.
 
-        Calculator dependencies require a numeric value.
+        Example:
 
-        Other tools receive the complete verified result.
+            $step_1
+
+        resolves to the result produced by step 1.
         """
 
-        if tool_name == "calculator":
-
-            return self._extract_numeric_value(
-                previous_result
+        if step_number <= 0:
+            raise ValueError(
+                f"Invalid step reference: "
+                f"$step_{step_number}"
             )
 
-        return previous_result
+        for record in state.tool_results:
+
+            if not isinstance(
+                record,
+                dict,
+            ):
+                continue
+
+            record_step = record.get(
+                "step"
+            )
+
+            record_step_id = record.get(
+                "step_id"
+            )
+
+            if (
+                record_step == step_number
+                or record_step_id
+                == f"step_{step_number}"
+            ):
+                result = record.get(
+                    "result"
+                )
+
+                if result is None:
+                    raise ValueError(
+                        f"Result for step {step_number} "
+                        "is unavailable."
+                    )
+
+                result_text = str(
+                    result
+                ).strip()
+
+                if not result_text:
+                    raise ValueError(
+                        f"Result for step {step_number} "
+                        "is empty."
+                    )
+
+                return result_text
+
+        raise ValueError(
+            f"Step result '$step_{step_number}' "
+            "is not available yet."
+        )
+
+    # =============================================================
+    # VERIFIED RESULTS
+    # =============================================================
+
+    def _get_verified_results_text(
+        self,
+        state: AgentState,
+    ) -> str:
+        """
+        Format all previously executed results
+        into clearly separated execution context.
+        """
+
+        if not state.tool_results:
+            return (
+                "No previous verified execution "
+                "results are available."
+            )
+
+        sections: list[str] = []
+
+        for record in state.tool_results:
+
+            if not isinstance(
+                record,
+                dict,
+            ):
+                continue
+
+            step = record.get(
+                "step",
+                "?",
+            )
+
+            step_id = record.get(
+                "step_id",
+                f"step_{step}",
+            )
+
+            result = record.get(
+                "result"
+            )
+
+            if result is None:
+                continue
+
+            result_text = str(
+                result
+            ).strip()
+
+            if not result_text:
+                continue
+
+            sections.append(
+                f"STEP {step} ({step_id}) RESULT:\n"
+                f"{result_text}"
+            )
+
+        if not sections:
+            return (
+                "No valid verified execution "
+                "results are available."
+            )
+
+        return "\n\n".join(
+            sections
+        )
 
     # =============================================================
     # NUMERIC EXTRACTION
@@ -507,7 +928,7 @@ STRICT RULES:
         """
         Extract a numeric value from a verified result.
 
-        Supports common industrial measurements:
+        Examples:
 
             92 C
             87.5 °C
@@ -519,158 +940,31 @@ STRICT RULES:
             55 kW
             3.2 mm/s
 
-        The first valid measurement value is returned.
+        If multiple numbers are present, the first numeric
+        value is returned.
+
+        This method is intended for deterministic
+        calculator dependencies, not general NLP.
         """
 
-        if not result or not result.strip():
-            raise ValueError(
-                "Cannot extract a numeric value "
-                "from an empty result."
+        if not isinstance(
+            result,
+            str,
+        ):
+            result = str(
+                result
             )
 
-        text = result.strip()
-
-        # ---------------------------------------------------------
-        # NUMBER + INDUSTRIAL UNIT
-        # ---------------------------------------------------------
-
-        unit_pattern = (
-            r"(-?\d+(?:\.\d+)?)"
-            r"\s*"
-            r"(?:"
-            r"°\s*C|"
-            r"°C|"
-            r"C|"
-            r"bar|"
-            r"kPa|"
-            r"MPa|"
-            r"psi|"
-            r"%|"
-            r"rpm|"
-            r"V|"
-            r"kV|"
-            r"A|"
-            r"kA|"
-            r"W|"
-            r"kW|"
-            r"MW|"
-            r"Hz|"
-            r"mm/s|"
-            r"m/s|"
-            r"L/min|"
-            r"m3/h|"
-            r"kg|"
-            r"kg/h|"
-            r"ton|"
-            r"tons|"
-            r"Pa"
-            r")"
-            r"\b"
+        # Correct numeric regex.
+        matches = re.findall(
+            r"[-+]?(?:\d+(?:\.\d+)?|\.\d+)",
+            result,
         )
 
-        match = re.search(
-            unit_pattern,
-            text,
-            re.IGNORECASE,
-        )
-
-        if match:
-            return match.group(1)
-
-        # ---------------------------------------------------------
-        # LABEL + NUMBER
-        # ---------------------------------------------------------
-
-        label_pattern = (
-            r"(?:value|reading|measurement|"
-            r"result|level|pressure|temperature|"
-            r"flow|speed|rpm|vibration|voltage|"
-            r"current|power|load)"
-            r"\s*"
-            r"(?:is|:|=|-)?"
-            r"\s*"
-            r"(-?\d+(?:\.\d+)?)"
-        )
-
-        match = re.search(
-            label_pattern,
-            text,
-            re.IGNORECASE,
-        )
-
-        if match:
-            return match.group(1)
-
-        # ---------------------------------------------------------
-        # FALLBACK NUMERIC VALUE
-        # ---------------------------------------------------------
-
-        numbers = re.findall(
-            r"-?\d+(?:\.\d+)?",
-            text,
-        )
-
-        if len(numbers) == 1:
-            return numbers[0]
-
-        if not numbers:
+        if not matches:
             raise ValueError(
                 "Could not extract a numeric value "
                 "from the previous result."
             )
 
-        raise ValueError(
-            "Previous result contains multiple numeric "
-            "values and cannot be safely resolved "
-            "without additional context."
-        )
-
-    # =============================================================
-    # VERIFIED RESULTS
-    # =============================================================
-
-    def _get_verified_results_text(
-        self,
-        state: AgentState,
-    ) -> str:
-        """
-        Format verified execution results for LLM steps.
-        """
-
-        if not state.tool_results:
-            return "None"
-
-        results = []
-
-        for item in state.tool_results:
-
-            step_number = item.get(
-                "step",
-                "?",
-            )
-
-            action = item.get(
-                "action",
-                "",
-            )
-
-            tool = item.get(
-                "tool"
-            )
-
-            result = item.get(
-                "result"
-            )
-
-            results.append(
-                (
-                    f"Step {step_number}\n"
-                    f"Action: {action}\n"
-                    f"Tool: {tool}\n"
-                    f"Verified result: {result}"
-                )
-            )
-
-        return "\n\n".join(
-            results
-        )
+        return matches[0]

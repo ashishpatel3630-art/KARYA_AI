@@ -1,14 +1,21 @@
-from .engine import OCREngine
-from .pdf import OCRPDFPage, OCRPDFResult, PDFOCRService
-from .preprocessing import ImagePreprocessor
-from .service import OCRResult, OCRService
+"""
+KARYA document processing package.
+
+This package contains parsers and generators for:
+- PDF
+- DOCX
+- XLSX
+- PPTX
+"""
+
+from .docx import DOCXParser
+from .pdf import PDFParser
+from .pptx import PPTXParser
+from .xlsx import XLSXParser
 
 __all__ = [
-    "OCREngine",
-    "ImagePreprocessor",
-    "OCRResult",
-    "OCRService",
-    "OCRPDFPage",
-    "OCRPDFResult",
-    "PDFOCRService",
+    "DOCXParser",
+    "PDFParser",
+    "PPTXParser",
+    "XLSXParser",
 ]

@@ -1,73 +1,39 @@
-from typing import Any
+from __future__ import annotations
 
-from llm.schemas import LLMMessage, LLMRequest
-from llm.service import LLMService
+from typing import Any
 
 from .executor import AgentExecutor
 from .planner import AgentPlanner
-from .policies import (
-    AgentPolicy,
-    DEFAULT_AGENT_POLICY,
-    validate_policy,
-)
 from .state import AgentState
 
 
 class AgentLoop:
     """
-    Main orchestration loop for the KARYA agent.
+    Main execution loop for KARYA agents.
 
-    Lifecycle:
+    Responsibilities:
 
-        User Request
-             ↓
-        Planning
-             ↓
-        Step Execution
-             ↓
-        Verified Results
-             ↓
-        Final Synthesis
-             ↓
-        Final Answer
+    1. Create an execution plan.
+    2. Validate the plan.
+    3. Execute steps sequentially.
+    4. Preserve verified execution results.
+    5. Stop immediately on execution failure.
+    6. Produce a grounded final answer.
+    7. Never add unsupported claims to verified results.
     """
+
+    MAX_STEPS = 20
 
     def __init__(
         self,
         planner: AgentPlanner | None = None,
         executor: AgentExecutor | None = None,
-        llm_service: LLMService | None = None,
-        policy: AgentPolicy | None = None,
-    ):
-        self.llm_service = (
-            llm_service or LLMService()
-        )
-
-        self.policy = (
-            policy or DEFAULT_AGENT_POLICY
-        )
-
-        validate_policy(
-            self.policy
-        )
-
-        self.planner = (
-            planner
-            or AgentPlanner(
-                llm_service=self.llm_service
-            )
-        )
-
-        self.executor = (
-            executor
-            or AgentExecutor(
-                llm_service=self.llm_service,
-                tool_registry=self.planner.tool_registry,
-            )
-        )
+    ) -> None:
+        self.planner = planner or AgentPlanner()
+        self.executor = executor or AgentExecutor()
 
     # =============================================================
-    # PUBLIC API
+    # MAIN LOOP
     # =============================================================
 
     def run(
@@ -75,58 +41,96 @@ class AgentLoop:
         user_input: str,
     ) -> AgentState:
         """
-        Execute a complete KARYA agent task.
+        Execute a complete agent workflow.
 
-        The method always returns AgentState for execution
-        failures so callers can inspect the error safely.
+        Flow:
+
+            User Input
+                ↓
+            Planner
+                ↓
+            Plan Validation
+                ↓
+            Step Execution
+                ↓
+            Verified Results
+                ↓
+            Final Answer
         """
 
-        if not user_input or not user_input.strip():
+        if not isinstance(
+            user_input,
+            str,
+        ):
             raise ValueError(
-                "User input cannot be empty."
+                "Agent input must be a string."
+            )
+
+        user_input = user_input.strip()
+
+        if not user_input:
+            raise ValueError(
+                "Agent input cannot be empty."
             )
 
         state = AgentState(
-            user_input=user_input.strip()
+            user_input=user_input
         )
 
         try:
             # -----------------------------------------------------
-            # 1. PLAN
+            # CREATE PLAN
             # -----------------------------------------------------
 
-            state = self.planner.plan_task(
+            plan = self.planner.plan_task(
                 state
             )
+
+            if not isinstance(
+                plan,
+                list,
+            ):
+                raise ValueError(
+                    "Planner must return a list of plan steps."
+                )
+
+            state.plan = plan
+
+            if not state.plan:
+                raise ValueError(
+                    "Planner returned an empty plan."
+                )
+
+            # -----------------------------------------------------
+            # VALIDATE PLAN
+            # -----------------------------------------------------
 
             self._validate_plan_limits(
                 state
             )
 
+            self._validate_plan_dependencies(
+                state
+            )
+
             # -----------------------------------------------------
-            # 2. EXECUTE
+            # EXECUTE PLAN
             # -----------------------------------------------------
 
-            while not state.completed:
-
-                self._validate_execution_limits(
+            while (
+                state.current_step
+                < len(state.plan)
+            ):
+                self.executor.execute_current_step(
                     state
                 )
 
-                state = (
-                    self.executor.execute_current_step(
-                        state
-                    )
-                )
-
             # -----------------------------------------------------
-            # 3. FINAL SYNTHESIS
+            # FINAL ANSWER
             # -----------------------------------------------------
 
-            state.final_answer = (
-                self._synthesize_final_answer(
-                    state
-                )
+            self._set_final_answer(
+                state
             )
 
             state.completed = True
@@ -134,13 +138,8 @@ class AgentLoop:
             return state
 
         except Exception as exc:
-
-            state.error = str(
-                exc
-            )
-
+            state.error = str(exc)
             state.completed = False
-
             return state
 
     # =============================================================
@@ -152,205 +151,346 @@ class AgentLoop:
         state: AgentState,
     ) -> None:
         """
-        Validate that the generated plan respects
-        the configured execution policy.
+        Prevent runaway agent plans.
         """
 
-        if not state.plan:
+        if len(state.plan) > self.MAX_STEPS:
             raise ValueError(
-                "Agent planner returned an empty plan."
+                f"Agent plan exceeds the maximum allowed "
+                f"step count of {self.MAX_STEPS}."
             )
 
-        if len(state.plan) > (
-            self.policy.max_plan_steps
-        ):
-            raise ValueError(
-                "Agent plan exceeds the maximum "
-                "allowed number of steps."
-            )
+    def _validate_plan_dependencies(
+        self,
+        state: AgentState,
+    ) -> None:
+        """
+        Validate that every declared dependency refers
+        to a real earlier step.
+        """
+
+        step_ids: set[str] = set()
 
         for index, step in enumerate(
-            state.plan,
-            start=1,
+            state.plan
         ):
-
             if not isinstance(
                 step,
                 dict,
             ):
                 raise ValueError(
-                    f"Plan step {index} is invalid."
+                    f"Plan step {index + 1} is invalid."
                 )
 
-            action = step.get(
-                "action"
+            step_id = step.get(
+                "step_id",
+                f"step_{index + 1}",
             )
 
             if not isinstance(
-                action,
+                step_id,
                 str,
-            ) or not action.strip():
-
+            ):
                 raise ValueError(
-                    f"Plan step {index} "
-                    "contains an invalid action."
+                    f"Plan step {index + 1} has an invalid step_id."
                 )
 
+            step_id = step_id.strip()
+
+            if not step_id:
+                raise ValueError(
+                    f"Plan step {index + 1} has an empty step_id."
+                )
+
+            if step_id in step_ids:
+                raise ValueError(
+                    f"Duplicate plan step_id: {step_id}"
+                )
+
+            step_ids.add(
+                step_id
+            )
+
+        # Dependencies must point to existing steps.
+        # They may only point to steps before the current step.
+        for index, step in enumerate(
+            state.plan
+        ):
+            dependencies = step.get(
+                "depends_on",
+                [],
+            )
+
+            if dependencies is None:
+                dependencies = []
+
+            if not isinstance(
+                dependencies,
+                list,
+            ):
+                raise ValueError(
+                    f"Plan step {index + 1} dependencies "
+                    "must be a list."
+                )
+
+            current_step_id = step.get(
+                "step_id",
+                f"step_{index + 1}",
+            )
+
+            for dependency in dependencies:
+                if not isinstance(
+                    dependency,
+                    str,
+                ):
+                    raise ValueError(
+                        f"Dependency in {current_step_id} "
+                        "must be a string."
+                    )
+
+                dependency = dependency.strip()
+
+                if dependency not in step_ids:
+                    raise ValueError(
+                        f"Plan step {current_step_id} "
+                        f"depends on unknown step '{dependency}'."
+                    )
+
+                if dependency == current_step_id:
+                    raise ValueError(
+                        f"Plan step {current_step_id} "
+                        "cannot depend on itself."
+                    )
+
+                dependency_index = self._find_step_index(
+                    state.plan,
+                    dependency,
+                )
+
+                if dependency_index >= index:
+                    raise ValueError(
+                        f"Plan step {current_step_id} "
+                        f"depends on step '{dependency}' "
+                        "which has not executed yet."
+                    )
+
     # =============================================================
-    # EXECUTION LIMITS
+    # STEP LOOKUP
     # =============================================================
 
-    def _validate_execution_limits(
+    def _find_step_index(
+        self,
+        plan: list[dict[str, Any]],
+        step_id: str,
+    ) -> int:
+        """
+        Return the zero-based index of a plan step.
+        """
+
+        for index, step in enumerate(
+            plan
+        ):
+            if (
+                isinstance(step, dict)
+                and step.get(
+                    "step_id",
+                    f"step_{index + 1}",
+                )
+                == step_id
+            ):
+                return index
+
+        return -1
+
+    # =============================================================
+    # FINAL ANSWER
+    # =============================================================
+
+    def _set_final_answer(
         self,
         state: AgentState,
     ) -> None:
         """
-        Prevent runaway agent execution.
+        Set the final answer from the last successful
+        execution step.
+
+        KARYA intentionally does NOT perform another LLM
+        synthesis here.
+
+        Reason:
+
+        The final execution step has already been instructed
+        to produce the grounded recommendation. Running another
+        LLM after that can introduce unsupported claims.
+
+        Therefore:
+
+            verified step result
+                    ↓
+            clean final answer
         """
 
-        if (
-            len(state.tool_calls)
-            >= self.policy.max_tool_calls
-        ):
-            raise RuntimeError(
-                "Agent exceeded the maximum "
-                "allowed number of tool calls."
+        last_result = self._get_last_result(
+            state
+        )
+
+        if last_result is None:
+            raise ValueError(
+                "Agent completed without a verified execution result."
             )
 
-        if state.current_step >= len(
-            state.plan
-        ):
-            state.completed = True
-            return
+        cleaned = self._clean_final_result(
+            last_result
+        )
 
-        if state.current_step < 0:
-            raise RuntimeError(
-                "Agent execution state is invalid."
+        if not cleaned:
+            raise ValueError(
+                "Agent completed with an empty final answer."
             )
 
+        state.final_answer = cleaned
+
     # =============================================================
-    # FINAL SYNTHESIS
+    # LAST RESULT
     # =============================================================
 
-    def _synthesize_final_answer(
+    def _get_last_result(
         self,
         state: AgentState,
-    ) -> str:
+    ) -> str | None:
         """
-        Generate the final user-facing answer.
-
-        The LLM is allowed to synthesize wording,
-        but not invent or modify verified results.
+        Return the result from the last successfully
+        executed plan step.
         """
 
         if not state.tool_results:
-            return (
-                "The agent completed without producing "
-                "any execution results."
-            )
+            return None
 
-        verified_results = (
-            self._build_verified_results(
-                state
-            )
-        )
-
-        prompt = f"""
-You are the final answer component of KARYA,
-a sovereign industrial AI system.
-
-Answer the user's request using ONLY the verified
-execution results below.
-
-USER REQUEST:
-{state.user_input}
-
-VERIFIED EXECUTION RESULTS:
-{verified_results}
-
-STRICT RULES:
-
-1. Treat verified execution results as ground truth.
-
-2. Do not invent facts.
-
-3. Do not modify verified numeric values.
-
-4. Do not perform new calculations.
-
-5. Do not contradict tool results.
-
-6. Do not claim access to external systems.
-
-7. Do not claim access to sensors.
-
-8. Do not claim access to databases unless a real
-   tool provided that information.
-
-9. Do not claim access to files unless a real
-   tool provided that information.
-
-10. Do not claim network access.
-
-11. Do not expose internal agent state.
-
-12. Do not describe hidden reasoning.
-
-13. Give the user a direct and concise answer.
-
-14. If the verified results are insufficient,
-    clearly state that the information is insufficient.
-
-15. Preserve important units and source information.
-
-Return ONLY the final answer text.
-""".strip()
-
-        request = LLMRequest(
-            messages=[
-                LLMMessage(
-                    role="system",
-                    content=(
-                        "You are a precise final-answer "
-                        "synthesis engine. "
-                        "Use only verified execution results."
-                    ),
-                ),
-                LLMMessage(
-                    role="user",
-                    content=prompt,
-                ),
-            ],
-            temperature=0.0,
-        )
-
-        response = self.llm_service.chat(
-            request
-        )
-
-        final_answer = (
-            response.content.strip()
-        )
-
-        if not final_answer:
-            raise ValueError(
-                "Final answer synthesis returned "
-                "an empty response."
-            )
-
-        if len(final_answer) > (
-            self.policy.max_result_length
+        for record in reversed(
+            state.tool_results
         ):
-            final_answer = (
-                final_answer[
-                    : self.policy.max_result_length
-                ].rstrip()
+            if not isinstance(
+                record,
+                dict,
+            ):
+                continue
+
+            result = record.get(
+                "result"
             )
 
-        return final_answer
+            if result is None:
+                continue
+
+            result_text = str(
+                result
+            ).strip()
+
+            if result_text:
+                return result_text
+
+        return None
 
     # =============================================================
-    # VERIFIED RESULT FORMATTING
+    # FINAL RESULT CLEANUP
+    # =============================================================
+
+    def _clean_final_result(
+        self,
+        result: str,
+    ) -> str:
+        """
+        Clean harmless execution-wrapper text from the
+        final LLM result.
+
+        This method does NOT rewrite the actual content.
+
+        It only removes common wrappers such as:
+
+            EXECUTION STEP:
+
+            EXECUTION STEP COMPLETE:
+
+            RECOMMENDATION:
+
+        The underlying verified content is preserved.
+        """
+
+        if not isinstance(
+            result,
+            str,
+        ):
+            result = str(
+                result
+            )
+
+        cleaned = result.strip()
+
+        if not cleaned:
+            return ""
+
+        # ---------------------------------------------------------
+        # Remove leading execution wrapper.
+        # ---------------------------------------------------------
+
+        prefixes = (
+            "EXECUTION STEP COMPLETE:",
+            "EXECUTION STEP:",
+        )
+
+        changed = True
+
+        while changed:
+            changed = False
+
+            for prefix in prefixes:
+                if cleaned.upper().startswith(
+                    prefix
+                ):
+                    cleaned = cleaned[
+                        len(prefix):
+                    ].strip()
+
+                    changed = True
+                    break
+
+        # ---------------------------------------------------------
+        # If the result contains a leading "RECOMMENDATION:"
+        # marker, remove only the marker.
+        #
+        # Do NOT remove the actual recommendation.
+        # ---------------------------------------------------------
+
+        if cleaned.upper().startswith(
+            "RECOMMENDATION:"
+        ):
+            cleaned = cleaned[
+                len("RECOMMENDATION:"):
+            ].strip()
+
+        # ---------------------------------------------------------
+        # Remove unnecessary surrounding quotation marks
+        # only when the ENTIRE answer is quoted.
+        # ---------------------------------------------------------
+
+        if (
+            len(cleaned) >= 2
+            and cleaned.startswith('"')
+            and cleaned.endswith('"')
+        ):
+            cleaned = cleaned[1:-1].strip()
+
+        if (
+            len(cleaned) >= 2
+            and cleaned.startswith("'")
+            and cleaned.endswith("'")
+        ):
+            cleaned = cleaned[1:-1].strip()
+
+        return cleaned
+
+    # =============================================================
+    # VERIFIED RESULTS
     # =============================================================
 
     def _build_verified_results(
@@ -358,35 +498,135 @@ Return ONLY the final answer text.
         state: AgentState,
     ) -> list[dict[str, Any]]:
         """
-        Build a clean representation of verified results
-        for final synthesis.
+        Return normalized verified execution results.
+
+        Supports the current executor schema:
+
+            {
+                "step": 1,
+                "step_id": "step_1",
+                "result": "..."
+            }
+
+        and the older schema:
+
+            {
+                "step": 1,
+                "step_id": "step_1",
+                "success": True,
+                "output": "..."
+            }
         """
 
-        verified_results = []
+        verified: list[dict[str, Any]] = []
 
-        for item in state.tool_results:
+        for record in state.tool_results:
 
             if not isinstance(
-                item,
+                record,
                 dict,
             ):
                 continue
 
-            verified_results.append(
+            result = record.get(
+                "result"
+            )
+
+            # Backward compatibility.
+            if result is None:
+                success = record.get(
+                    "success"
+                )
+
+                output = record.get(
+                    "output"
+                )
+
+                error = record.get(
+                    "error"
+                )
+
+                if success is False:
+                    continue
+
+                if output is not None:
+                    result = output
+
+                elif error is not None:
+                    continue
+
+            if result is None:
+                continue
+
+            result_text = str(
+                result
+            ).strip()
+
+            if not result_text:
+                continue
+
+            verified.append(
                 {
-                    "step": item.get(
+                    "step": record.get(
                         "step"
                     ),
-                    "action": item.get(
+                    "step_id": record.get(
+                        "step_id"
+                    ),
+                    "action": record.get(
                         "action"
                     ),
-                    "tool": item.get(
+                    "tool": record.get(
                         "tool"
                     ),
-                    "result": item.get(
-                        "result"
-                    ),
+                    "result": result_text,
                 }
             )
 
-        return verified_results
+        return verified
+
+    # =============================================================
+    # FALLBACK SYNTHESIS
+    # =============================================================
+
+    def _synthesize_final_answer(
+        self,
+        state: AgentState,
+    ) -> str:
+        """
+        Legacy fallback synthesis.
+
+        Normally this method is NOT used.
+
+        KARYA prefers the last verified execution result
+        because an additional LLM call can introduce
+        unsupported information.
+
+        This method is retained for compatibility with
+        existing code/tests that may call it directly.
+        """
+
+        verified_results = (
+            self._build_verified_results(
+                state
+            )
+        )
+
+        if not verified_results:
+            raise ValueError(
+                "No verified execution results are available "
+                "for final synthesis."
+            )
+
+        sections: list[str] = []
+
+        for item in verified_results:
+            sections.append(
+                f"STEP {item.get('step', '?')} "
+                f"({item.get('step_id', 'unknown')})\n"
+                f"{item.get('result', '')}"
+            )
+
+        return "\n\n".join(
+            sections
+        )
