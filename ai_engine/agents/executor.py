@@ -6,6 +6,7 @@ from typing import Any
 
 from llm.schemas import LLMMessage, LLMRequest
 from llm.service import LLMService
+from rag.schemas import Citation, deduplicate_citations
 from tools.registry import ToolRegistry, create_default_registry
 from tools.schemas import ToolCall
 
@@ -215,10 +216,15 @@ class AgentExecutor:
             "success": result.success,
             "output": result.output,
             "error": result.error,
+            "citations": result.citations,
         }
 
         state.tool_calls.append(
             tool_record
+        )
+
+        state.citations = deduplicate_citations(
+            [*state.citations, *result.citations]
         )
 
         if not result.success:
@@ -433,6 +439,10 @@ STRICT SAFETY RULES:
                         {},
                     ),
                     "result": result,
+                    "citations": self._get_step_citations(
+                        state,
+                        step,
+                    ),
                 }
             )
 
@@ -450,6 +460,20 @@ STRICT SAFETY RULES:
             state.error = str(exc)
             state.completed = False
             raise
+
+    @staticmethod
+    def _get_step_citations(
+        state: AgentState,
+        step: dict[str, Any],
+    ) -> list[Citation]:
+        """Return citations recorded by the current tool step."""
+
+        if not step.get("tool") or not state.tool_calls:
+            return []
+
+        return deduplicate_citations(
+            state.tool_calls[-1].get("citations", [])
+        )
 
     # =============================================================
     # ARGUMENT RESOLUTION
@@ -474,6 +498,12 @@ STRICT SAFETY RULES:
         References can appear anywhere inside strings.
         """
 
+        if tool_name == "calculator":
+            return self._resolve_calculator_arguments(
+                state=state,
+                arguments=arguments,
+            )
+
         resolved = self._resolve_arguments(
             state=state,
             value=arguments,
@@ -485,13 +515,6 @@ STRICT SAFETY RULES:
         ):
             raise ValueError(
                 "Resolved tool arguments must be a dictionary."
-            )
-
-        # Calculator requires numeric substitution.
-        if tool_name == "calculator":
-            resolved = self._resolve_calculator_arguments(
-                state=state,
-                arguments=resolved,
             )
 
         return resolved
@@ -965,6 +988,11 @@ STRICT SAFETY RULES:
             raise ValueError(
                 "Could not extract a numeric value "
                 "from the previous result."
+            )
+
+        if len(matches) != 1:
+            raise ValueError(
+                "Numeric value is ambiguous in the previous result."
             )
 
         return matches[0]

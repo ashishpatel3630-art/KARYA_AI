@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from rag.schemas import Citation
+
 
 @dataclass
 class OrchestrationRequest:
@@ -228,10 +230,14 @@ class StepResult:
     output: Any = None
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    citations: list[Citation] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.metadata is None:
             self.metadata = {}
+
+        if self.citations is None:
+            self.citations = []
 
 
 @dataclass
@@ -246,6 +252,7 @@ class OrchestrationResult:
     )
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    citations: list[Citation] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.answer is None:
@@ -256,6 +263,9 @@ class OrchestrationResult:
 
         if self.metadata is None:
             self.metadata = {}
+
+        if self.citations is None:
+            self.citations = []
 
     @property
     def completed_steps(self) -> list[StepResult]:

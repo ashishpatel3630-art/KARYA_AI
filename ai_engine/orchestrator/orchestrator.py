@@ -29,6 +29,7 @@ from orchestrator.schemas import (
     OrchestrationResult,
 )
 from orchestrator.strategy import StrategyBuilder
+from rag.schemas import deduplicate_citations
 
 
 class KARYAOrchestrator:
@@ -250,11 +251,18 @@ class KARYAOrchestrator:
                     output
                 ).strip()
 
-            return result
+        else:
+            result.answer = self._combine_outputs(
+                successful_steps
+            )
 
-        result.answer = self._combine_outputs(
-            successful_steps
-        )
+        citations = deduplicate_citations(result.citations)
+        if citations:
+            sources = "\n".join(
+                citation.user_facing_label(index)
+                for index, citation in enumerate(citations, start=1)
+            )
+            result.answer = f"{result.answer}\n\nSources:\n{sources}"
 
         return result
 

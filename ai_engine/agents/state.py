@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from rag.schemas import Citation
+
 
 @dataclass
 class AgentState:
@@ -47,6 +49,10 @@ class AgentState:
     # Results that have actually been produced by tools
     # or verified execution steps.
     tool_results: list[dict[str, Any]] = field(
+        default_factory=list
+    )
+
+    citations: list[Citation] = field(
         default_factory=list
     )
 
@@ -118,6 +124,7 @@ class AgentState:
         self.current_step = 0
         self.tool_calls.clear()
         self.tool_results.clear()
+        self.citations.clear()
         self.final_answer = None
         self.completed = False
         self.error = None

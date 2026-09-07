@@ -1,6 +1,8 @@
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from rag.schemas import Citation
 
 
 @dataclass
@@ -28,4 +30,5 @@ class ToolResult:
     success: bool
     output: Any
     error: str | None = None
+    citations: list[Citation] = field(default_factory=list)
 

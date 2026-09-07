@@ -103,6 +103,8 @@ class CalculatorTool:
                 error=f"Invalid mathematical expression: {exc}",
             )
 
+        self._validate_ast(tree.body)
+
         try:
             result = self._evaluate(tree.body)
 
@@ -233,7 +235,7 @@ class CalculatorTool:
             if not isinstance(
                 node.value,
                 (int, float),
-            ):
+            ) or isinstance(node.value, bool):
                 raise ValueError(
                     "Only numeric values are allowed."
                 )

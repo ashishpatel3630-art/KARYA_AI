@@ -1,11 +1,15 @@
+from pathlib import Path
+
+from docx import Document
 from documents.docx import DOCXParser
 
 
-parser = DOCXParser()
+def test_docx_parser_reads_document(tmp_path: Path):
+	document_path = tmp_path / "test_document.docx"
+	document = Document()
+	document.add_paragraph("KARYA DOCX test")
+	document.save(document_path)
 
-print("Reading DOCX...\n")
+	text = DOCXParser().parse(document_path)
 
-text = parser.parse("test_document.docx")
-
-print("EXTRACTED TEXT:")
-print(text)
+	assert "KARYA DOCX test" in text

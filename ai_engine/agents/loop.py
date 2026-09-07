@@ -4,7 +4,13 @@ from typing import Any
 
 from .executor import AgentExecutor
 from .planner import AgentPlanner
+from .policies import (
+    DEFAULT_AGENT_POLICY,
+    AgentPolicy,
+    validate_policy,
+)
 from .state import AgentState
+from rag.schemas import deduplicate_citations
 
 
 class AgentLoop:
@@ -28,7 +34,10 @@ class AgentLoop:
         self,
         planner: AgentPlanner | None = None,
         executor: AgentExecutor | None = None,
+        policy: AgentPolicy | None = None,
     ) -> None:
+        self.policy = policy or DEFAULT_AGENT_POLICY
+        validate_policy(self.policy)
         self.planner = planner or AgentPlanner()
         self.executor = executor or AgentExecutor()
 
@@ -154,10 +163,15 @@ class AgentLoop:
         Prevent runaway agent plans.
         """
 
-        if len(state.plan) > self.MAX_STEPS:
+        max_steps = min(
+            self.MAX_STEPS,
+            self.policy.max_plan_steps,
+        )
+
+        if len(state.plan) > max_steps:
             raise ValueError(
                 f"Agent plan exceeds the maximum allowed "
-                f"step count of {self.MAX_STEPS}."
+                f"step count of {max_steps}."
             )
 
     def _validate_plan_dependencies(
@@ -349,6 +363,14 @@ class AgentLoop:
             )
 
         state.final_answer = cleaned
+
+        citations = deduplicate_citations(state.citations)
+        if citations:
+            sources = "\n".join(
+                citation.user_facing_label(index)
+                for index, citation in enumerate(citations, start=1)
+            )
+            state.final_answer = f"{state.final_answer}\n\nSources:\n{sources}"
 
     # =============================================================
     # LAST RESULT

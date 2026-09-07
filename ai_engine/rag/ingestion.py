@@ -85,7 +85,7 @@ class DocumentIngestion:
             pages = [
                 IngestedPage(
                     page_number=page.page_number,
-                    content=page.content,
+                    content=page.text,
                 )
                 for page in pdf_pages
             ]

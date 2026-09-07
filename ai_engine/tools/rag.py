@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from rag.schemas import deduplicate_citations
 from rag.service import RAGService
 from tools.permissions import PermissionLevel, PermissionManager
 from tools.schemas import ToolDefinition, ToolResult
@@ -240,13 +241,12 @@ class RAGTool:
                 error=f"RAG execution failed: {exc}",
             )
 
-        output = self._format_response(response)
-
         return ToolResult(
             tool_name=self.name,
             success=True,
-            output=output,
+            output=response.answer,
             error=None,
+            citations=deduplicate_citations(response.citations),
         )
 
     def execute_with_input(

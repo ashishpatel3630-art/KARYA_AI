@@ -13,6 +13,7 @@ from agents.agent import KaryaAgent
 from llm.schemas import LLMMessage, LLMRequest
 from llm.service import LLMService
 from ocr.service import OCRService
+from rag.schemas import Citation, deduplicate_citations
 from orchestrator.schemas import (
     ExecutionPlan,
     ExecutionStep,
@@ -73,6 +74,8 @@ class OrchestratorExecutor:
             or VisionService()
         )
 
+        self._pending_citations: list[Citation] = []
+
     def execute(
         self,
         plan: ExecutionPlan,
@@ -132,6 +135,7 @@ class OrchestratorExecutor:
                 )
 
             try:
+                self._pending_citations = []
                 output = self._execute_step(
                     plan.request,
                     step,
@@ -143,6 +147,9 @@ class OrchestratorExecutor:
                     success=True,
                     output=output,
                     error=None,
+                    citations=deduplicate_citations(
+                        self._pending_citations
+                    ),
                 )
 
                 step_results.append(result)
@@ -157,6 +164,7 @@ class OrchestratorExecutor:
                     success=False,
                     output=None,
                     error=str(exc),
+                    citations=self._collect_citations(step_results),
                 )
 
                 step_results.append(result)
@@ -170,6 +178,7 @@ class OrchestratorExecutor:
                         f"Step '{step.step_id}' failed: "
                         f"{exc}"
                     ),
+                    citations=self._collect_citations(step_results),
                 )
 
         return OrchestrationResult(
@@ -178,6 +187,7 @@ class OrchestratorExecutor:
             plan=plan,
             step_results=step_results,
             error=None,
+            citations=self._collect_citations(step_results),
         )
 
     def _execute_step(
@@ -358,7 +368,28 @@ class OrchestratorExecutor:
                 or f"Tool '{tool_name}' failed."
             )
 
+        self._pending_citations = result.citations
         return result.output
+
+    @staticmethod
+    def _extract_citations(output: Any) -> list[Citation]:
+        """Extract structured citations from supported step outputs."""
+
+        citations = getattr(output, "citations", None)
+        if citations is None and isinstance(output, dict):
+            citations = output.get("citations", [])
+        if not isinstance(citations, list):
+            return []
+        return deduplicate_citations(citations)
+
+    @staticmethod
+    def _collect_citations(
+        step_results: list[StepResult],
+    ) -> list[Citation]:
+        citations: list[Citation] = []
+        for result in step_results:
+            citations.extend(result.citations)
+        return deduplicate_citations(citations)
 
     def _execute_tool(
         self,

@@ -8,6 +8,7 @@ from documents.docx import DOCXParser
 from documents.pdf import PDFParser
 from documents.pptx import PPTXParser
 from documents.xlsx import XLSXParser
+from rag.schemas import Citation
 from tools.schemas import ToolDefinition, ToolResult
 
 
@@ -104,9 +105,10 @@ class FileReaderTool:
 
         try:
             suffix = path.suffix.lower()
+            citations: list[Citation] = []
 
             if suffix == ".pdf":
-                output = self._read_pdf(path)
+                output, citations = self._read_pdf_with_citations(path)
 
             elif suffix == ".docx":
                 output = self._read_docx(path)
@@ -140,6 +142,7 @@ class FileReaderTool:
                 success=True,
                 output=output,
                 error=None,
+                citations=citations,
             )
 
         except Exception as exc:
@@ -191,6 +194,36 @@ class FileReaderTool:
             )
 
         return "\n\n".join(sections)
+
+    def _read_pdf_with_citations(
+        self,
+        path: Path,
+    ) -> tuple[str, list[Citation]]:
+        """Read PDF pages and retain verified page-level sources."""
+
+        pages = self._pdf_parser.parse(path)
+        sections: list[str] = []
+        citations: list[Citation] = []
+        document_id = str(path.resolve())
+
+        for page in pages:
+            sections.append(
+                f"[Page {page.page_number}]\n"
+                f"{page.text}"
+            )
+            citations.append(
+                Citation(
+                    document_id=document_id,
+                    file_name=path.name,
+                    file_type=path.suffix.lower(),
+                    page_number=page.page_number,
+                    chunk_id=page.page_number,
+                    source_text=page.text,
+                    similarity=1.0,
+                )
+            )
+
+        return "\n\n".join(sections), citations
 
     def _read_docx(
         self,

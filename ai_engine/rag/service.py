@@ -147,6 +147,8 @@ USER QUESTION:
                 page_number=result.page_number,
                 chunk_id=result.chunk_id,
                 similarity=result.similarity,
+                document_id=result.document_id,
+                source_text=result.content,
             )
             for result in results
         ]

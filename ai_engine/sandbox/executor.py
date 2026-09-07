@@ -24,6 +24,21 @@ class SandboxResult:
     timed_out: bool = False
     exit_code: int | None = None
 
+    def is_empty(self) -> bool:
+        """Return True when sandbox execution produced no output."""
+
+        return not self.output
+
+    def has_error(self) -> bool:
+        """Return True when sandbox execution failed."""
+
+        return self.error is not None
+
+    def output_length(self) -> int:
+        """Return the captured output length."""
+
+        return len(self.output)
+
 
 _RUNNER_CODE = r'''
 from __future__ import annotations
@@ -469,7 +484,7 @@ class SandboxExecutor:
                         success=False,
                         output=output,
                         error=(
-                            "Sandbox CPU time limit "
+                            "Sandbox timeout: CPU time limit "
                             f"of "
                             f"{self.limits.cpu_time_seconds} "
                             "seconds was exceeded."
@@ -518,6 +533,45 @@ class SandboxExecutor:
                     else None
                 ),
             )
+
+    def execute_file(
+        self,
+        file_path: str,
+    ) -> SandboxResult:
+        """Validate and execute a local Python source file."""
+
+        if not isinstance(file_path, str) or not file_path.strip():
+            return SandboxResult(
+                success=False,
+                error="Code file not found: file path is empty.",
+            )
+
+        path = Path(file_path)
+
+        if not path.exists() or not path.is_file():
+            return SandboxResult(
+                success=False,
+                error=f"Code file not found: {path}",
+            )
+
+        if path.suffix.lower() != ".py":
+            return SandboxResult(
+                success=False,
+                error="Code file must have a .py extension.",
+            )
+
+        try:
+            code = path.read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError as exc:
+            return SandboxResult(
+                success=False,
+                error=f"Failed to read code file: {exc}",
+            )
+
+        return self.execute(code)
 
     @staticmethod
     def _terminate_process(

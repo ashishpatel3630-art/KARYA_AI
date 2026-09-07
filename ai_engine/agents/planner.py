@@ -72,11 +72,6 @@ class AgentPlanner:
         self.tool_registry = (
             tool_registry or create_default_registry()
         )
-
-    # ------------------------------------------------------------------
-    # PUBLIC API
-    # ------------------------------------------------------------------
-
     def plan_task(
         self,
         state: AgentState,
@@ -106,7 +101,6 @@ class AgentPlanner:
             state.plan = []
             return []
 
-        # Deterministic-first planning.
 
         plan = self._detect_industrial_document_workflow(
             user_input
@@ -155,7 +149,6 @@ class AgentPlanner:
 
         return plan
 
-    # Backward-compatible alias.
 
     def create_plan(
         self,
@@ -165,9 +158,7 @@ class AgentPlanner:
             state
         )
 
-    # ------------------------------------------------------------------
-    # INDUSTRIAL DOCUMENT WORKFLOW
-    # ------------------------------------------------------------------
+
 
     def _detect_industrial_document_workflow(
         self,
@@ -296,10 +287,6 @@ class AgentPlanner:
             }
         )
 
-        # --------------------------------------------------------------
-        # STEP 2
-        # --------------------------------------------------------------
-        # Extract only the verified measurement.
 
         plan.append(
             {
@@ -348,10 +335,6 @@ class AgentPlanner:
             }
         )
 
-        # --------------------------------------------------------------
-        # STEP 3
-        # --------------------------------------------------------------
-        # Extract only an explicitly documented threshold.
 
         plan.append(
             {
@@ -402,10 +385,6 @@ class AgentPlanner:
             }
         )
 
-        # --------------------------------------------------------------
-        # STEP 4
-        # --------------------------------------------------------------
-        # Compare only verified values.
 
         plan.append(
             {
@@ -653,35 +632,23 @@ class AgentPlanner:
                 "description": (
                     "Search the local knowledge base."
                 ),
-                "tool": "rag",
+                "tool": "search",
                 "arguments": {
-                    "question": subject,
-                    "top_k": 3,
-                    "similarity_threshold": 0.60,
+                    "directory": ".",
+                    "query": subject,
                 },
                 "depends_on": [],
                 "required": True,
             },
             {
                 "step_id": "step_2",
-                "action": "llm",
+                "action": "use_tool",
                 "description": (
-                    "Extract relevant numeric information."
+                    "Calculate the requested difference."
                 ),
-                "tool": None,
+                "tool": "calculator",
                 "arguments": {
-                    "prompt": (
-                        "Extract only the numeric values relevant "
-                        "to the calculation from this retrieved "
-                        "context.\n\n"
-
-                        "Rules:\n"
-                        "- Use only the retrieved context.\n"
-                        "- Do not invent values.\n"
-                        "- Do not use outside knowledge.\n\n"
-
-                        "$step_1"
-                    )
+                    "expression": "0",
                 },
                 "depends_on": [
                     "step_1"
@@ -864,11 +831,11 @@ class AgentPlanner:
                 "description": (
                     "Search the local knowledge base."
                 ),
-                "tool": "rag",
+                "tool": "search",
                 "arguments": {
-                    "question": subject,
-                    "top_k": 3,
-                    "similarity_threshold": 0.60,
+                    "directory": ".",
+                    "directory": ".",
+                    "query": subject,
                 },
                 "depends_on": [],
                 "required": True,
