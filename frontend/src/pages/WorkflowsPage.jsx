@@ -1,20 +1,15 @@
+import { Pause, Play, Plus } from "lucide-react";
+import { useState } from "react";
 import PageHeader from "../components/common/PageHeader";
-import EmptyState from "../components/common/EmptyState";
+import { useOperations } from "../context/OperationsContext";
 
 export default function WorkflowsPage() {
-  return (
-    <div>
-      <PageHeader
-        eyebrow="Automation"
-        title="Workflows"
-        description="The workflow builder is scaffolded for later node-based orchestration and remains disabled until backend support exists."
-        action={<button type="button" className="rounded-xl border border-[#2A2A2A] bg-white px-4 py-2 text-xs uppercase tracking-[0.2em] text-black">Create workflow</button>}
-      />
-
-      <EmptyState
-        title="No workflow API contract found"
-        description="This page is ready for trigger → employee → action orchestration once the backend exposes workflow endpoints."
-      />
-    </div>
-  );
+  const { workflows, agents, runWorkflow, createWorkflow } = useOperations();
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  function submit(event) { event.preventDefault(); if (!name.trim()) return; createWorkflow({ name: name.trim() }); setName(""); setCreating(false); }
+  return <div><PageHeader eyebrow="Automation" title="Workflows" description="Connected execution graphs show which agent, knowledge source, and approval gate carries the work." action={<button type="button" onClick={() => setCreating((value) => !value)} className="inline-flex items-center gap-2 border border-white bg-white px-4 py-3 text-xs uppercase tracking-[0.18em] text-black"><Plus size={15} /> Create workflow</button>} />
+    {creating && <form onSubmit={submit} className="mb-8 border border-[#2A2A2A] bg-[#0A0A0A] p-5"><label className="block text-xs uppercase tracking-[0.18em] text-[#777772]">Workflow name<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Safety review" className="mt-3 w-full border border-[#2A2A2A] bg-[#050505] px-4 py-3 text-sm text-white outline-none focus:border-white" /></label><button className="mt-4 border border-white bg-white px-4 py-3 text-xs uppercase tracking-[0.18em] text-black">Create workflow</button></form>}
+    <div className="space-y-5">{workflows.map((workflow) => <article key={workflow.id} className="border border-[#202020] bg-[#0A0A0A] p-6 sm:p-8"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#777772]">{workflow.id} · Agent: {agents.find((agent) => agent.id === workflow.agentId)?.name || "Unassigned"}</p><h2 className="mt-3 text-2xl text-white">{workflow.name}</h2></div><span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#C8C8C3]">{workflow.status}</span></div><div className="mt-8 flex flex-wrap items-center gap-2">{workflow.nodes.map((node, index) => <span key={node} className="flex items-center gap-2"><span className={`border px-3 py-2 text-xs ${workflow.status === "RUNNING" && index === 0 ? "border-white bg-white text-black" : "border-[#2A2A2A] text-[#D8D8D8]"}`}>{node}</span>{index < workflow.nodes.length - 1 && <span className="text-[#555550]">→</span>}</span>)}</div><div className="mt-7 h-1 bg-[#242424]"><div className="h-1 bg-white transition-all duration-700" style={{ width: `${workflow.progress}%` }} /></div><div className="mt-5 flex items-center justify-between"><span className="font-mono text-[9px] uppercase tracking-[0.16em] text-[#777772]">{workflow.progress}% execution state</span><button type="button" onClick={() => runWorkflow(workflow.id)} disabled={workflow.status === "RUNNING"} className="inline-flex items-center gap-2 border border-white bg-white px-4 py-3 text-xs uppercase tracking-[0.16em] text-black disabled:cursor-wait disabled:opacity-50">{workflow.status === "RUNNING" ? <Pause size={14} /> : <Play size={14} />} {workflow.status === "RUNNING" ? "Running" : "Run workflow"}</button></div></article>)}</div>
+  </div>;
 }

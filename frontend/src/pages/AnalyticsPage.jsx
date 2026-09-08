@@ -1,19 +1,9 @@
+import { BarChart3 } from "lucide-react";
 import PageHeader from "../components/common/PageHeader";
-import EmptyState from "../components/common/EmptyState";
+import { useOperations } from "../context/OperationsContext";
 
 export default function AnalyticsPage() {
-  return (
-    <div>
-      <PageHeader
-        eyebrow="Performance"
-        title="Analytics"
-        description="Operational metrics are intentionally hidden until the backend exposes real analytics data."
-      />
-
-      <EmptyState
-        title="Analytics data not available yet"
-        description="Connect an analytics source or expose metrics endpoints to populate this dashboard with execution data."
-      />
-    </div>
-  );
+  const { analytics, agents, systemStatus } = useOperations();
+  const metrics = [["Total executions", analytics.totalExecutions], ["Successful", analytics.successfulExecutions], ["Failed", analytics.failedExecutions], ["Workflow runs", analytics.workflowRuns], ["Knowledge retrievals", analytics.knowledgeRetrievals], ["Approval rate", `${analytics.approvalRate}%`]];
+  return <div><PageHeader eyebrow="Performance" title="Analytics" description="Metrics are derived from the same execution, approval, knowledge, and workflow state used across the workspace." /><div className="grid gap-px border border-[#202020] bg-[#202020] md:grid-cols-2 xl:grid-cols-3">{metrics.map(([label, value]) => <article key={label} className="bg-[#0A0A0A] p-6"><p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#777772]">{label}</p><p className="mt-8 text-4xl text-white">{value}</p></article>)}</div><section className="mt-8 border border-[#202020] bg-[#0A0A0A] p-6"><div className="flex items-center gap-3"><BarChart3 size={18} /><h2 className="text-xs uppercase tracking-[0.18em]">Workforce utilization</h2></div><div className="mt-8 space-y-5">{agents.map((agent) => <div key={agent.id}><div className="flex justify-between text-sm"><span>{agent.name}</span><span className="font-mono text-xs text-[#777772]">{agent.successRate}% success</span></div><div className="mt-3 h-1 bg-[#242424]"><div className="h-1 bg-white" style={{ width: `${agent.successRate}%` }} /></div></div>)}</div><p className="mt-8 border-t border-[#202020] pt-5 font-mono text-[9px] uppercase tracking-[0.16em] text-[#777772]">System {systemStatus.system} · {systemStatus.activeAgents} active agents · {systemStatus.runningWorkflows} running workflows</p></section></div>;
 }

@@ -1,19 +1,8 @@
+import { Check, ShieldCheck, X } from "lucide-react";
 import PageHeader from "../components/common/PageHeader";
-import EmptyState from "../components/common/EmptyState";
+import { useOperations } from "../context/OperationsContext";
 
 export default function ApprovalsPage() {
-  return (
-    <div>
-      <PageHeader
-        eyebrow="Governance"
-        title="Approvals"
-        description="Approval workflows are scaffolded for future enterprise controls and remain disabled until backend support exists."
-      />
-
-      <EmptyState
-        title="Approval center is not connected"
-        description="No approval endpoint is available in the current API, so approval actions are intentionally disabled and labeled as coming soon."
-      />
-    </div>
-  );
+  const { approvals, reviewApproval, tasks, agents } = useOperations();
+  return <div><PageHeader eyebrow="Governance" title="Approvals" description="Human review is the control layer between an AI decision and a sensitive action." /><div className="space-y-4">{approvals.map((approval) => <article key={approval.id} className="border border-[#202020] bg-[#0A0A0A] p-6"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><div className="flex items-center gap-3"><ShieldCheck size={18} /><span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#777772]">{approval.risk} risk · {approval.status}</span></div><h2 className="mt-4 text-2xl text-white">{approval.action}</h2><p className="mt-3 text-sm text-[#777772]">{approval.reason}</p></div><div className="text-left text-xs text-[#777772] sm:text-right"><p>Agent</p><p className="mt-1 text-[#D8D8D8]">{agents.find((agent) => agent.id === approval.agentId)?.name}</p><p className="mt-4">Task</p><p className="mt-1 text-[#D8D8D8]">{tasks.find((task) => task.id === approval.taskId)?.title}</p></div></div>{approval.status === "PENDING" && <div className="mt-6 flex gap-3 border-t border-[#202020] pt-5"><button type="button" onClick={() => reviewApproval(approval.id, "APPROVED")} className="inline-flex items-center gap-2 border border-white bg-white px-4 py-3 text-xs uppercase tracking-[0.16em] text-black"><Check size={14} /> Approve</button><button type="button" onClick={() => reviewApproval(approval.id, "REJECTED")} className="inline-flex items-center gap-2 border border-[#2A2A2A] px-4 py-3 text-xs uppercase tracking-[0.16em] text-[#D8D8D8] hover:border-white"><X size={14} /> Reject</button></div>}</article>)}</div></div>;
 }

@@ -12,6 +12,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useOperations } from "../../context/OperationsContext";
 
 const navItems = [
   { to: "/app", label: "Overview", icon: House },
@@ -27,6 +28,14 @@ const navItems = [
 ];
 
 export default function Sidebar() {
+  const { agents, tasks, workflows, systemStatus } = useOperations();
+  const counts = {
+    "AI Employees": agents.length,
+    Workflows: workflows.length,
+    Tasks: tasks.length,
+    Approvals: systemStatus.pendingApprovals,
+  };
+
   return (
     <aside className="hidden w-72 shrink-0 border-r border-[#202020] bg-[#0A0A0A] lg:flex lg:flex-col">
       <div className="flex items-center gap-3 border-b border-[#202020] px-6 py-5">
@@ -53,7 +62,8 @@ export default function Sidebar() {
             }
           >
             <Icon size={16} />
-            <span>{label}</span>
+            <span className="min-w-0 flex-1">{label}</span>
+            {counts[label] !== undefined && <span className="font-mono text-[10px] text-[#777772]">{counts[label]}</span>}
           </NavLink>
         ))}
       </nav>

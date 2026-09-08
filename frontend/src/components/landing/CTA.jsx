@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
-export default function CTA() {
+export default function CTA({ onStart }) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
 
@@ -60,8 +60,9 @@ export default function CTA() {
             make better decisions.
           </p>
 
-          <a
-            href="/login"
+          <button
+            type="button"
+            onClick={() => onStart?.()}
             className="
               group
               mx-auto
@@ -87,7 +88,7 @@ export default function CTA() {
             <span className="transition-transform duration-500 group-hover:translate-x-1">
               →
             </span>
-          </a>
+          </button>
         </div>
       </div>
     </section>

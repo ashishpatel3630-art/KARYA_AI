@@ -31,7 +31,7 @@ const OBSERVED_SECTIONS = [
   "security",
 ];
 
-export default function Navbar({ onLogin }) {
+export default function Navbar({ onLogin, onRegister }) {
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -299,6 +299,19 @@ export default function Navbar({ onLogin }) {
     }
 
     window.location.href = "/login";
+  };
+
+  const handleRegister = () => {
+    window.dispatchEvent(
+      new CustomEvent("karya:register-intent")
+    );
+
+    if (onRegister) {
+      onRegister();
+      return;
+    }
+
+    window.location.href = "/register";
   };
 
   /*
@@ -653,6 +666,16 @@ export default function Navbar({ onLogin }) {
                 </span>
               </div>
 
+              {/* REGISTER */}
+
+              <button
+                type="button"
+                onClick={handleRegister}
+                className="hidden h-10 items-center border border-[#363636] px-4 font-mono text-[8px] font-semibold tracking-[0.18em] text-[#C8C8C3] outline-none transition-all duration-500 hover:border-white hover:bg-white hover:text-black focus-visible:border-white focus-visible:bg-white focus-visible:text-black sm:flex"
+              >
+                REGISTER
+              </button>
+
               {/* LOGIN */}
 
               <button
@@ -967,6 +990,15 @@ export default function Navbar({ onLogin }) {
                 LOCAL / PRIVATE
               </span>
             </div>
+
+            <button
+              type="button"
+              onClick={handleRegister}
+              className="mt-5 flex w-full items-center justify-between border border-[#363636] px-4 py-4 font-mono text-[9px] font-semibold tracking-[0.18em] text-white transition hover:border-white hover:bg-white hover:text-black"
+            >
+              REGISTER NEW WORKSPACE
+              <span>→</span>
+            </button>
           </div>
         </div>
       </header>
