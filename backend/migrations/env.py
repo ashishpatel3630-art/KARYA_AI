@@ -7,6 +7,7 @@ from alembic import context
 
 from app.core.database import Base
 from app.models.user import User
+from app.models import domain  # noqa: F401
 
 # Alembic Config object
 config = context.config

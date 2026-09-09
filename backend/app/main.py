@@ -8,6 +8,8 @@ from app.oauth.router import router as oauth_router
 from app.sessions.router import router as sessions_router
 from app.users.router import router as users_router
 from app.verification.router import router as verification_router
+from app.domain.router import router as domain_router
+from app.models import domain  # noqa: F401
 
 
 app = FastAPI(
@@ -49,6 +51,10 @@ app.include_router(oauth_router)
 app.include_router(verification_router)
 app.include_router(sessions_router)
 app.include_router(users_router)
+app.include_router(domain_router)
+
+from app.core.database import Base, engine
+Base.metadata.create_all(bind=engine)
 
 
 # =========================
