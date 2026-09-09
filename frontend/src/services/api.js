@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8000";
 const ACCESS_TOKEN_KEY = "karya_access_token";
 const REFRESH_TOKEN_KEY = "karya_refresh_token";
 
@@ -78,7 +78,7 @@ export async function apiRequest(path, options = {}) {
   };
 
   const accessToken = getStoredAccessToken();
-  if (accessToken && !(requestOptions.body instanceof FormData)) {
+  if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
@@ -96,6 +96,10 @@ export async function apiRequest(path, options = {}) {
       return apiRequest(path, { ...requestOptions, __retry: true });
     }
 
+    clearStoredTokens();
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.assign("/login");
+    }
     throw new Error("Your session has expired. Please sign in again.");
   }
 

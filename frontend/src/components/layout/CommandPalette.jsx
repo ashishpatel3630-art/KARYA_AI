@@ -9,6 +9,7 @@ const COMMANDS = [
   { label: "Go to Tasks", meta: "Execution", to: "/app/tasks" },
   { label: "Go to Workflows", meta: "Automation", to: "/app/workflows" },
   { label: "Search Knowledge", meta: "Evidence", to: "/app/knowledge" },
+  { label: "Ask KARYA", meta: "RAG workspace", to: "/app/chat" },
   { label: "View Integrations", meta: "Tools", to: "/app/integrations" },
   { label: "View Activity", meta: "Audit trail", to: "/app/activity" },
   { label: "Review Approvals", meta: "Human control", to: "/app/approvals" },

@@ -18,6 +18,7 @@ import Register from './pages/Register.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import TasksPage from './pages/TasksPage.jsx'
 import WorkflowsPage from './pages/WorkflowsPage.jsx'
+import ChatPage from './pages/ChatPage.jsx'
 
 function RequireAuth({ children }) {
   const { authReady, isAuthenticated } = useAuth()
@@ -46,6 +47,7 @@ createRoot(document.getElementById('root')).render(
               }
             >
               <Route index element={<Overview />} />
+              <Route path="chat" element={<ChatPage />} />
               <Route path="agents" element={<AgentsPage />} />
               <Route path="workflows" element={<WorkflowsPage />} />
               <Route path="tasks" element={<TasksPage />} />

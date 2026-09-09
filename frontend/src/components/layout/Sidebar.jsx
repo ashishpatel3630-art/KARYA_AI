@@ -1,5 +1,6 @@
 import {
   Activity,
+  MessageSquare,
   BriefcaseBusiness,
   Cpu,
   FileText,
@@ -20,6 +21,7 @@ const navItems = [
   { to: "/app/workflows", label: "Workflows", icon: Workflow },
   { to: "/app/tasks", label: "Tasks", icon: BriefcaseBusiness },
   { to: "/app/knowledge", label: "Knowledge", icon: FileText },
+  { to: "/app/chat", label: "Ask KARYA", icon: MessageSquare },
   { to: "/app/integrations", label: "Integrations", icon: Layers3 },
   { to: "/app/activity", label: "Activity", icon: Activity },
   { to: "/app/approvals", label: "Approvals", icon: ShieldCheck },

@@ -23,7 +23,8 @@ class RAGService:
         self,
         question: str,
         top_k: int = 3,
-        similarity_threshold: float = 0.60,
+        similarity_threshold: float = 0.55,
+        document_ids: list[str] | None = None,
     ) -> RAGResponse:
         if not question or not question.strip():
             raise ValueError("Question cannot be empty.")
@@ -41,6 +42,7 @@ class RAGService:
         results = self.retriever.search(
             query_embedding=query_embedding,
             top_k=top_k,
+            document_ids=document_ids,
         )
 
         results = [

@@ -4,13 +4,6 @@ import { Link } from "react-router-dom";
 import PageHeader from "../components/common/PageHeader";
 import { useOperations } from "../context/OperationsContext";
 
-const runtimeSystems = [
-  { label: "AI core", detail: "Local model runtime", status: "READY" },
-  { label: "Knowledge engine", detail: "Retrieval and evidence", status: "READY" },
-  { label: "Agent runtime", detail: "Execution orchestration", status: "READY" },
-  { label: "Tool runtime", detail: "Permissions and sandbox", status: "READY" },
-];
-
 const flow = [
   ["01", "Knowledge", "Sources become context"],
   ["02", "Agents", "Context becomes capability"],
@@ -19,7 +12,13 @@ const flow = [
 ];
 
 export default function Overview() {
-  const { systemStatus, activities, tasks, workflows, approvals } = useOperations();
+  const { systemStatus, activities, tasks, workflows, approvals, knowledge, agents } = useOperations();
+  const runtimeSystems = [
+    { label: "API", detail: "Authenticated backend", status: systemStatus.system },
+    { label: "Knowledge engine", detail: `${knowledge.length} persisted documents`, status: knowledge.length ? "CONNECTED" : "EMPTY" },
+    { label: "Agent runtime", detail: `${agents.length} persisted agents`, status: agents.length ? "CONNECTED" : "EMPTY" },
+    { label: "Worker runtime", detail: "Task execution queue", status: "NOT_CONFIGURED" },
+  ];
   return (
     <div>
       <PageHeader
@@ -34,7 +33,7 @@ export default function Overview() {
             <article key={system.label} className="bg-[#0A0A0A] p-5">
               <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.2em] text-[#777772]">
                 <span>{system.label}</span>
-                <span className="text-[#F5F5F5]">{system.label === "Agent runtime" && systemStatus.system === "DEGRADED" ? "DEGRADED" : system.status}</span>
+                <span className="text-[#F5F5F5]">{system.status}</span>
               </div>
               <p className="mt-8 text-sm text-[#D8D8D8]">{system.detail}</p>
               <div className="mt-5 h-px bg-[#2A2A2A]"><div className="h-px w-4/5 bg-white" /></div>

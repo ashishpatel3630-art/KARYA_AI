@@ -24,7 +24,7 @@ export default function AppShell() {
           <div className="space-y-1 pt-4">
             {[
               ["/app", "Overview"], ["/app/agents", "AI Employees"], ["/app/workflows", "Workflows"],
-              ["/app/tasks", "Tasks"], ["/app/knowledge", "Knowledge"], ["/app/integrations", "Integrations"],
+              ["/app/tasks", "Tasks"], ["/app/knowledge", "Knowledge"], ["/app/chat", "Ask KARYA"], ["/app/integrations", "Integrations"],
               ["/app/activity", "Activity"], ["/app/approvals", "Approvals"], ["/app/analytics", "Analytics"], ["/app/settings", "Settings"],
             ].map(([to, label]) => (
               <NavLink

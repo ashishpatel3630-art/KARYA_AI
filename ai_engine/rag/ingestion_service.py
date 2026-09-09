@@ -25,7 +25,7 @@ class RAGIngestionService:
         self.embedding_model = embedding_model or EmbeddingModel()
         self.vector_store = vector_store or VectorStore()
 
-    def ingest_document(self, file_path: str) -> dict:
+    def ingest_document(self, file_path: str, document_id: str | None = None) -> dict:
         """Run the complete document-to-vector ingestion pipeline."""
 
         path = Path(file_path)
@@ -83,7 +83,7 @@ class RAGIngestionService:
             [chunk.content for chunk in all_chunks]
         )
 
-        document_id = str(uuid4())
+        document_id = document_id or str(uuid4())
 
         records = []
 

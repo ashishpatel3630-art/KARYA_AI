@@ -34,6 +34,7 @@ class Retriever:
         self,
         query_embedding: list[float],
         top_k: int = 5,
+        document_ids: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         """Search for the most similar document chunks."""
 
@@ -48,10 +49,44 @@ class Retriever:
                 "top_k must be greater than zero."
             )
 
+        document_filter = ""
+
+        # IMPORTANT:
+        # The SQL placeholders appear in this order:
+        #
+        #   1. query_embedding
+        #   2. document_ids (if supplied)
+        #   3. query_embedding
+        #   4. top_k
+        #
+        # Therefore the parameters MUST follow exactly
+        # the same order.
+
+        parameters: list[object] = [
+            query_embedding,
+        ]
+
+        if document_ids is not None:
+            if not document_ids:
+                return []
+
+            document_filter = (
+                "WHERE document_id = ANY(%s::text[])"
+            )
+
+            parameters.append(document_ids)
+
+        parameters.extend(
+            [
+                query_embedding,
+                top_k,
+            ]
+        )
+
         with self._get_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
-                    """
+                    f"""
                     SELECT
                         id,
                         document_id,
@@ -62,14 +97,11 @@ class Retriever:
                         content,
                         1 - (embedding <=> %s::vector) AS similarity
                     FROM document_chunks
+                    {document_filter}
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
                     """,
-                    (
-                        query_embedding,
-                        query_embedding,
-                        top_k,
-                    ),
+                    parameters,
                 )
 
                 rows = cursor.fetchall()

@@ -82,6 +82,24 @@ class DocumentIngestion:
                 str(path)
             )
 
+            content_test = "".join(
+                page.text for page in pdf_pages if page.text
+            )
+
+            if not content_test.strip():
+                from ocr.pdf import PDFOCRService
+                ocr_service = PDFOCRService()
+                
+                if ocr_service.is_available():
+                    ocr_result = ocr_service.extract_text_from_pdf(str(path))
+                    pdf_pages = [
+                        PDFPage(
+                            page_number=page.page_number,
+                            text=page.text
+                        )
+                        for page in ocr_result.pages
+                    ]
+
             pages = [
                 IngestedPage(
                     page_number=page.page_number,
@@ -93,6 +111,7 @@ class DocumentIngestion:
             content = "\n\n".join(
                 page.content
                 for page in pages
+                if page.content
             )
 
         else:
@@ -104,6 +123,9 @@ class DocumentIngestion:
                     content=content,
                 )
             ]
+
+        if not content.strip():
+            raise ValueError("Extracted document content is empty.")
 
         return IngestedDocument(
             file_name=path.name,
