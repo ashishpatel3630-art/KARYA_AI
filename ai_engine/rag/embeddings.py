@@ -1,31 +1,83 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from functools import lru_cache
+
 from sentence_transformers import SentenceTransformer
 
 
+@dataclass(frozen=True)
+class EmbeddingConfig:
+    """
+    Configuration for KARYA's local embedding engine.
+    """
+
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    device: str | None = None
+    batch_size: int = 32
+    normalize_embeddings: bool = True
+
+
+class EmbeddingError(RuntimeError):
+    """Base exception for embedding failures."""
+
+
 class EmbeddingModel:
-    """Generate local embeddings for KARYA RAG."""
+    """
+    Production-oriented local embedding service.
+
+    Responsibilities:
+    - Load one local embedding model.
+    - Generate single embeddings.
+    - Generate batch embeddings.
+    - Expose embedding dimension.
+    """
 
     def __init__(
         self,
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        config: EmbeddingConfig | None = None,
     ):
-        self.model_name = model_name
+        self.config = config or EmbeddingConfig()
 
-        self.model = SentenceTransformer(
-            model_name
-        )
-
-    def embed_text(self, text: str) -> list[float]:
-        """Generate an embedding vector for a single text."""
-
-        if not text or not text.strip():
+        if self.config.batch_size <= 0:
             raise ValueError(
-                "Cannot generate embedding for empty text."
+                "Embedding batch_size must be greater than zero."
             )
 
-        embedding = self.model.encode(
-            text,
-            normalize_embeddings=True,
-        )
+        try:
+            self.model = SentenceTransformer(
+                self.config.model_name,
+                device=self.config.device,
+            )
+        except Exception as exc:
+            raise EmbeddingError(
+                "Failed to load embedding model "
+                f"'{self.config.model_name}'."
+            ) from exc
+
+    def embed_text(
+        self,
+        text: str,
+    ) -> list[float]:
+        """
+        Generate an embedding for a single text.
+        """
+
+        self._validate_text(text)
+
+        try:
+            embedding = self.model.encode(
+                text,
+                normalize_embeddings=(
+                    self.config.normalize_embeddings
+                ),
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+        except Exception as exc:
+            raise EmbeddingError(
+                "Failed to generate text embedding."
+            ) from exc
 
         return embedding.tolist()
 
@@ -33,27 +85,76 @@ class EmbeddingModel:
         self,
         texts: list[str],
     ) -> list[list[float]]:
-        """Generate embeddings for multiple text chunks."""
+        """
+        Generate embeddings for multiple document chunks.
+        """
 
         if not texts:
             raise ValueError(
-                "Cannot generate embeddings for empty document list."
+                "Cannot generate embeddings for an empty list."
             )
 
         for text in texts:
-            if not text or not text.strip():
-                raise ValueError(
-                    "Document list contains empty text."
-                )
+            self._validate_text(text)
 
-        embeddings = self.model.encode(
-            texts,
-            normalize_embeddings=True,
-        )
+        try:
+            embeddings = self.model.encode(
+                texts,
+                batch_size=self.config.batch_size,
+                normalize_embeddings=(
+                    self.config.normalize_embeddings
+                ),
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+        except Exception as exc:
+            raise EmbeddingError(
+                "Failed to generate document embeddings."
+            ) from exc
 
         return embeddings.tolist()
 
     def dimension(self) -> int:
-        """Return the embedding vector dimension."""
+        """
+        Return the embedding vector dimension.
+        """
 
-        return self.model.get_sentence_embedding_dimension()
+        dimension = (
+            self.model.get_sentence_embedding_dimension()
+        )
+
+        if dimension is None:
+            raise EmbeddingError(
+                "Embedding model did not expose a vector dimension."
+            )
+
+        return int(dimension)
+
+    @staticmethod
+    def _validate_text(text: str) -> None:
+        if not isinstance(text, str):
+            raise TypeError(
+                "Embedding input must be a string."
+            )
+
+        if not text.strip():
+            raise ValueError(
+                "Embedding input cannot be empty."
+            )
+
+
+@lru_cache(maxsize=4)
+def get_embedding_model(
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+) -> EmbeddingModel:
+    """
+    Return a cached embedding service.
+
+    This prevents unnecessary repeated model loading.
+    """
+
+    return EmbeddingModel(
+        EmbeddingConfig(
+            model_name=model_name,
+        )
+    )

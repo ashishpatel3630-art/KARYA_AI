@@ -1,49 +1,99 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from collections.abc import Iterator
 
 from .client import OllamaClient
-from .schemas import LLMRequest, LLMResponse
+from .schemas import LLMMessage
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    """
+    Runtime configuration for KARYA local LLM inference.
+    """
+
+    model: str = "llama3.2"
+    temperature: float = 0.2
+    max_tokens: int = 2048
 
 
 class LLMService:
-    """Application-level service for KARYA's local LLM."""
+    """
+    High-level LLM abstraction.
+
+    Agent code should communicate with this service,
+    not directly with Ollama HTTP APIs.
+    """
 
     def __init__(
         self,
         client: OllamaClient | None = None,
-        default_model: str = "llama3.2",
+        config: LLMConfig | None = None,
     ):
         self.client = client or OllamaClient()
-        self.default_model = default_model
+        self.config = config or LLMConfig()
 
-    def chat(self, request: LLMRequest) -> LLMResponse:
-        """Generate a complete AI response for an LLM request."""
+    def health(self) -> bool:
+        return self.client.health_check()
 
-        model = request.model or self.default_model
+    def models(self) -> list[dict]:
+        return self.client.list_models()
 
-        content = self.client.generate(
-            messages=request.messages,
-            model=model,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
+    def generate(
+        self,
+        messages: list[LLMMessage],
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
+
+        selected_model = model or self.config.model
+
+        selected_temperature = (
+            self.config.temperature
+            if temperature is None
+            else temperature
         )
 
-        return LLMResponse(
-            content=content,
-            model=model,
+        selected_max_tokens = (
+            self.config.max_tokens
+            if max_tokens is None
+            else max_tokens
         )
 
-    def stream(self, request: LLMRequest) -> Iterator[str]:
-        """
-        Stream an AI response for an LLM request.
+        return self.client.generate(
+            messages=messages,
+            model=selected_model,
+            temperature=selected_temperature,
+            max_tokens=selected_max_tokens,
+        )
 
-        Yields generated text chunks from the local Ollama runtime.
-        """
+    def stream(
+        self,
+        messages: list[LLMMessage],
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> Iterator[str]:
 
-        model = request.model or self.default_model
+        selected_model = model or self.config.model
+
+        selected_temperature = (
+            self.config.temperature
+            if temperature is None
+            else temperature
+        )
+
+        selected_max_tokens = (
+            self.config.max_tokens
+            if max_tokens is None
+            else max_tokens
+        )
 
         yield from self.client.generate_stream(
-            messages=request.messages,
-            model=model,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
+            messages=messages,
+            model=selected_model,
+            temperature=selected_temperature,
+            max_tokens=selected_max_tokens,
         )

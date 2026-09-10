@@ -1,47 +1,64 @@
+from __future__ import annotations
+
+from app.core.config import settings
 from app.core.redis import get_redis
 
 
-MAX_FAILED_ATTEMPTS = 5
-LOCKOUT_SECONDS = 900
-
-
 def get_login_attempt_key(email: str) -> str:
-    return f"login_attempts:{email.lower()}"
+    normalized_email = email.strip().lower()
+    return f"security:login_attempts:{normalized_email}"
 
 
 def is_login_blocked(email: str) -> bool:
-    redis = get_redis()
-
+    redis_client = get_redis()
     key = get_login_attempt_key(email)
 
-    attempts = redis.get(key)
+    attempts = redis_client.get(key)
 
     if attempts is None:
         return False
 
-    return int(attempts) >= MAX_FAILED_ATTEMPTS
+    try:
+        return int(attempts) >= settings.BRUTE_FORCE_ATTEMPTS
+    except (TypeError, ValueError):
+        return False
 
 
 def record_failed_login(email: str) -> int:
-    redis = get_redis()
-
+    redis_client = get_redis()
     key = get_login_attempt_key(email)
 
-    attempts = redis.incr(key)
+    attempts = redis_client.incr(key)
 
     if attempts == 1:
-        redis.expire(key, LOCKOUT_SECONDS)
+        redis_client.expire(
+            key,
+            settings.BRUTE_FORCE_WINDOW_SECONDS,
+        )
 
-    return attempts
+    return int(attempts)
 
 
 def clear_failed_logins(email: str) -> None:
-    redis = get_redis()
-
-    key = get_login_attempt_key(email)
-
-    redis.delete(key)
+    redis_client = get_redis()
+    redis_client.delete(get_login_attempt_key(email))
 
 
 def reset_failed_logins(email: str) -> None:
     clear_failed_logins(email)
+
+
+def get_failed_login_attempts(email: str) -> int:
+    redis_client = get_redis()
+
+    value = redis_client.get(
+        get_login_attempt_key(email)
+    )
+
+    if value is None:
+        return 0
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
