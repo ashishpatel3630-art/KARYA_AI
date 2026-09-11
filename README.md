@@ -678,7 +678,6 @@ KARYA focuses on building a secure, sovereign AI workbench for confidential indu
 License information will be added as the project reaches its release stage.
 
 ---
-
 # ⭐ Vision
 
 KARYA is not intended to be another generic AI chatbot.
