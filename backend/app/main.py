@@ -50,12 +50,6 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
-
-
-# ============================================================
-# SECURITY
-# ============================================================
-
 app.add_middleware(SecurityHeadersMiddleware)
 
 
@@ -87,11 +81,6 @@ app.add_middleware(
     ],
 )
 
-
-# ============================================================
-# REQUEST TELEMETRY
-# ============================================================
-
 @app.middleware("http")
 async def request_metrics(request: Request, call_next):
     """
@@ -109,11 +98,6 @@ async def request_metrics(request: Request, call_next):
     response.headers["X-Response-Time"] = f"{duration:.4f}s"
 
     return response
-
-
-# ============================================================
-# ROUTERS
-# ============================================================
 
 app.include_router(auth_router)
 app.include_router(password_reset_router)
@@ -193,12 +177,6 @@ async def redis_health():
                 "error": str(exc),
             },
         )
-
-
-# ============================================================
-# GLOBAL ERROR HANDLER
-# ============================================================
-
 @app.exception_handler(Exception)
 async def global_exception_handler(
     request: Request,
